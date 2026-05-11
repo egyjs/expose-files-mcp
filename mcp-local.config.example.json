@@ -19,7 +19,13 @@
       "nl",
       "printf",
       "where",
-      "Get-ChildItem"
+      "Get-ChildItem",
+      "php artisan",
+      "composer install",
+      "composer require",
+      "npm run build",
+      "./vendor/bin/pint",
+      "./vendor/bin/phpunit"
     ],
     "timeoutMs": 10000,
     "maxOutputBytes": 20000,

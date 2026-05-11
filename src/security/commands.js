@@ -48,14 +48,56 @@ const DEFAULT_DANGEROUS_BINARIES = new Set([
   "chown",
 ]);
 
-function getBaseCommand(commandLine) {
-  const trimmed = commandLine.trim();
-  if (!trimmed) return "";
-  const match = trimmed.match(/^("[^"]+"|'[^']+'|\S+)/);
-  if (!match) return "";
-  const token = match[1].replace(/^["']|["']$/g, "");
+function tokenize(commandLine) {
+  const tokens = [];
+  const s = commandLine;
+  let i = 0;
+  while (i < s.length) {
+    while (i < s.length && /\s/.test(s[i])) i++;
+    if (i >= s.length) break;
+    let token = "";
+    while (i < s.length && !/\s/.test(s[i])) {
+      const ch = s[i];
+      if (ch === '"' || ch === "'") {
+        const quote = ch;
+        i++;
+        while (i < s.length && s[i] !== quote) token += s[i++];
+        if (i < s.length) i++;
+      } else {
+        token += ch;
+        i++;
+      }
+    }
+    tokens.push(token);
+  }
+  return tokens;
+}
+
+function basename(token) {
   const last = token.split(/[\\/]/).pop() || token;
   return last.replace(/\.(exe|cmd|bat|ps1)$/i, "");
+}
+
+function hasPathSeparator(s) {
+  return /[\\/]/.test(s);
+}
+
+function matchEntry(entry, tokens) {
+  const entryTokens = entry.trim().split(/\s+/);
+  if (entryTokens.length === 0 || entryTokens.length > tokens.length) return false;
+
+  const headEntry = entryTokens[0];
+  const headToken = tokens[0];
+  if (hasPathSeparator(headEntry)) {
+    if (headEntry.toLowerCase() !== headToken.toLowerCase()) return false;
+  } else {
+    if (headEntry.toLowerCase() !== basename(headToken).toLowerCase()) return false;
+  }
+
+  for (let i = 1; i < entryTokens.length; i++) {
+    if (entryTokens[i] !== tokens[i]) return false;
+  }
+  return true;
 }
 
 export function validateCommand(commandLine, config) {
@@ -87,7 +129,12 @@ export function validateCommand(commandLine, config) {
     );
   }
 
-  const base = getBaseCommand(commandLine);
+  const tokens = tokenize(commandLine);
+  if (tokens.length === 0) {
+    throw new CommandSecurityError("Could not parse command name.");
+  }
+
+  const base = basename(tokens[0]);
   if (!base) {
     throw new CommandSecurityError("Could not parse command name.");
   }
@@ -105,12 +152,13 @@ export function validateCommand(commandLine, config) {
     );
   }
 
-  const allowed = allowedCommands.map((c) => c.toLowerCase());
-  if (!allowed.includes(base.toLowerCase())) {
+  const matched = allowedCommands.find((entry) => matchEntry(entry, tokens));
+  if (!matched) {
+    const prefix = tokens.slice(0, 2).join(" ");
     throw new CommandSecurityError(
-      `Command "${base}" is not in the allowlist. Allowed: ${allowedCommands.join(", ")}.`,
+      `Command "${prefix}" is not in the allowlist. Allowed: ${allowedCommands.join(", ")}.`,
     );
   }
 
-  return { base };
+  return { base, matched };
 }
