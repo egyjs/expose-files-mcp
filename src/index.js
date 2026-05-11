@@ -3,6 +3,7 @@ import { buildServer } from "./server.js";
 import { startStdio } from "./transports/stdio.js";
 import { startHttp } from "./transports/http.js";
 import { startTunnel } from "./tunnel/index.js";
+import { startDashboard } from "./dashboard.js";
 
 function log(...args) {
   process.stderr.write(args.join(" ") + "\n");
@@ -11,13 +12,18 @@ function log(...args) {
 export async function run(argv) {
   const { config, configPath } = loadConfig(argv);
 
+  const dashboard = await startDashboard(config);
+  if (dashboard) {
+    log(`[expose-files-mcp] dashboard: ${dashboard.url}`);
+  }
+
   if (config.transport === "stdio") {
     const { server, toolNames } = buildServer(config);
     await startStdio(server);
     log(
       `[expose-files-mcp] stdio transport ready. root=${config.rootDir} tools=${toolNames.join(",")}`,
     );
-    return { config, configPath };
+    return { config, configPath, dashboard };
   }
 
   const { toolNames } = buildServer(config);
@@ -64,7 +70,7 @@ export async function run(argv) {
   process.on("SIGINT", shutdown);
   process.on("SIGTERM", shutdown);
 
-  return { config, configPath, tunnel };
+  return { config, configPath, tunnel, dashboard };
 }
 
 export { loadConfig, redactConfig, buildServer };
