@@ -3,7 +3,7 @@ import { buildServer } from "./server.js";
 import { startStdio } from "./transports/stdio.js";
 import { startHttp } from "./transports/http.js";
 import { startTunnel } from "./tunnel/index.js";
-import { startDashboard } from "./dashboard.js";
+import { startDashboard } from "./dashboard/index.js";
 
 function log(...args) {
   process.stderr.write(args.join(" ") + "\n");

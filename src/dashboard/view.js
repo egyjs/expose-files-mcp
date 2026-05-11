@@ -1,43 +1,34 @@
-import express from "express";
-import { applyRuntimeUpdate, redactConfig, RUNTIME_EDITABLE_FIELDS } from "./config.js";
+const STYLES = `
+:root { color-scheme: light dark; }
+body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; margin: 0; padding: 24px; max-width: 880px; }
+h1 { font-size: 1.4rem; margin: 0 0 4px; }
+.sub { color: #666; font-size: 0.9rem; margin-bottom: 20px; }
+fieldset { border: 1px solid #ccc; border-radius: 8px; padding: 14px 18px; margin-bottom: 16px; }
+legend { font-weight: 600; padding: 0 6px; }
+label { display: block; font-size: 0.9rem; margin-bottom: 4px; color: #444; }
+.row { display: flex; gap: 12px; flex-wrap: wrap; margin-bottom: 12px; }
+.row > div { flex: 1 1 220px; }
+input[type=text], input[type=number], select, textarea {
+  width: 100%; padding: 6px 8px; font: inherit; border: 1px solid #bbb; border-radius: 4px;
+  background: canvas; color: canvastext; box-sizing: border-box;
+}
+textarea { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; min-height: 80px; }
+input[disabled], select[disabled], textarea[disabled] { opacity: 0.55; }
+.toggle { display: flex; align-items: center; gap: 8px; margin-top: 18px; }
+.actions { display: flex; gap: 10px; align-items: center; margin-top: 4px; }
+button { padding: 8px 16px; font: inherit; border: 0; border-radius: 4px; background: #2563eb; color: white; cursor: pointer; }
+button.secondary { background: #555; }
+button:disabled { opacity: 0.5; cursor: not-allowed; }
+.status { font-size: 0.9rem; }
+.status.ok { color: #0a7d2b; }
+.status.err { color: #b00020; }
+.note { font-size: 0.8rem; color: #888; margin-top: 6px; }
+.ro { font-size: 0.78rem; background: #e6e6e6; color: #555; padding: 1px 6px; border-radius: 4px; margin-left: 6px; }
+details summary { cursor: pointer; user-select: none; }
+details pre { background: rgba(0,0,0,0.05); padding: 10px; border-radius: 6px; overflow: auto; max-height: 280px; }
+`;
 
-const HTML = `<!doctype html>
-<html lang="en">
-<head>
-<meta charset="utf-8" />
-<title>expose-files-mcp dashboard</title>
-<meta name="viewport" content="width=device-width, initial-scale=1" />
-<style>
-  :root { color-scheme: light dark; }
-  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; margin: 0; padding: 24px; max-width: 880px; }
-  h1 { font-size: 1.4rem; margin: 0 0 4px; }
-  .sub { color: #666; font-size: 0.9rem; margin-bottom: 20px; }
-  fieldset { border: 1px solid #ccc; border-radius: 8px; padding: 14px 18px; margin-bottom: 16px; }
-  legend { font-weight: 600; padding: 0 6px; }
-  label { display: block; font-size: 0.9rem; margin-bottom: 4px; color: #444; }
-  .row { display: flex; gap: 12px; flex-wrap: wrap; margin-bottom: 12px; }
-  .row > div { flex: 1 1 220px; }
-  input[type=text], input[type=number], select, textarea {
-    width: 100%; padding: 6px 8px; font: inherit; border: 1px solid #bbb; border-radius: 4px;
-    background: canvas; color: canvastext; box-sizing: border-box;
-  }
-  textarea { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; min-height: 80px; }
-  input[disabled], select[disabled], textarea[disabled] { opacity: 0.55; }
-  .toggle { display: flex; align-items: center; gap: 8px; margin-top: 18px; }
-  .actions { display: flex; gap: 10px; align-items: center; margin-top: 4px; }
-  button { padding: 8px 16px; font: inherit; border: 0; border-radius: 4px; background: #2563eb; color: white; cursor: pointer; }
-  button.secondary { background: #555; }
-  button:disabled { opacity: 0.5; cursor: not-allowed; }
-  .status { font-size: 0.9rem; }
-  .status.ok { color: #0a7d2b; }
-  .status.err { color: #b00020; }
-  .note { font-size: 0.8rem; color: #888; margin-top: 6px; }
-  .ro { font-size: 0.78rem; background: #e6e6e6; color: #555; padding: 1px 6px; border-radius: 4px; margin-left: 6px; }
-  details summary { cursor: pointer; user-select: none; }
-  details pre { background: rgba(0,0,0,0.05); padding: 10px; border-radius: 6px; overflow: auto; max-height: 280px; }
-</style>
-</head>
-<body>
+const BODY = `
 <h1>expose-files-mcp</h1>
 <div class="sub">Local runtime configuration. Changes apply immediately to new MCP tool calls — no restart, no new tunnel.</div>
 
@@ -143,10 +134,9 @@ const HTML = `<!doctype html>
   <summary>Raw config (redacted)</summary>
   <pre id="raw"></pre>
 </details>
+`;
 
-<script>
-const ed = new Set(${JSON.stringify(RUNTIME_EDITABLE_FIELDS)});
-
+const CLIENT_SCRIPT = `
 function get(o, p) {
   return p.split(".").reduce((x, k) => (x == null ? x : x[k]), o);
 }
@@ -241,37 +231,20 @@ document.getElementById("cfg").addEventListener("submit", async (e) => {
 
 document.getElementById("reload").addEventListener("click", load);
 load();
-</script>
+`;
+
+export function renderHtml() {
+  return `<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>expose-files-mcp dashboard</title>
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<style>${STYLES}</style>
+</head>
+<body>
+${BODY}
+<script>${CLIENT_SCRIPT}</script>
 </body>
 </html>`;
-
-export async function startDashboard(config) {
-  if (!config.dashboard?.enabled) return null;
-
-  const app = express();
-  app.use(express.json({ limit: "1mb" }));
-
-  app.get("/", (_req, res) => {
-    res.type("html").send(HTML);
-  });
-
-  app.get("/api/config", (_req, res) => {
-    res.json(redactConfig(config));
-  });
-
-  app.post("/api/config", (req, res) => {
-    try {
-      applyRuntimeUpdate(config, req.body || {});
-      res.json(redactConfig(config));
-    } catch (err) {
-      res.status(400).json({ error: err.message });
-    }
-  });
-
-  const { host, port } = config.dashboard;
-  await new Promise((resolve, reject) => {
-    const server = app.listen(port, host, resolve);
-    server.on("error", reject);
-  });
-  return { host, port, url: `http://${host}:${port}` };
 }
