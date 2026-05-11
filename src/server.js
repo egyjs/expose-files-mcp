@@ -1,7 +1,9 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import { z } from "zod";
 import { fileTools } from "./tools/files.js";
 import { terminalTools } from "./tools/terminal.js";
 import { metaTools } from "./tools/meta.js";
+import { batchTools } from "./tools/batch.js";
 
 function wrapHandler(name, handler) {
   return async (args) => {
@@ -38,13 +40,25 @@ export function buildServer(config) {
     version: "0.1.0",
   });
 
-  const tools = [
+  const registry = new Map();
+
+  const baseTools = [
     ...metaTools(config),
     ...fileTools(config),
     ...terminalTools(config),
   ];
 
-  for (const tool of tools) {
+  for (const tool of baseTools) {
+    const schema = z.object(tool.inputSchema ?? {});
+    registry.set(tool.name, async (args) => {
+      const parsed = schema.parse(args ?? {});
+      return tool.handler(parsed);
+    });
+  }
+
+  const allTools = [...baseTools, ...batchTools(registry)];
+
+  for (const tool of allTools) {
     server.registerTool(
       tool.name,
       {
@@ -55,5 +69,5 @@ export function buildServer(config) {
     );
   }
 
-  return { server, toolNames: tools.map((t) => t.name) };
+  return { server, toolNames: allTools.map((t) => t.name) };
 }

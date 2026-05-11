@@ -312,6 +312,33 @@ See [`mcp-local.config.example.json`](./mcp-local.config.example.json) for a ful
 | `delete_file` | Deletes a file or directory. Requires write permission. |
 | `search_files` | Recursively matches filenames (glob) and/or content (regex). |
 | `run_command` | Runs one allowlisted command in the configured shell with timeout & output cap. |
+| `batch` | Runs up to 50 of the tools above in a single call, in parallel or sequential. |
+
+### `batch` — run multiple actions in one call
+
+Most MCP clients invoke one tool at a time. `batch` lets an agent submit several tool calls in a single request and receive every result together — useful when the agent already knows it needs, say, three files plus a directory listing. The tool runs the children directly inside the server, so a batch of 10 reads is one network round-trip instead of 10.
+
+Arguments:
+
+- `actions`: array (1..50) of `{ id?: string, tool: string, arguments: object }`. `id` is echoed back so the caller can correlate results.
+- `mode`: `"parallel"` (default) runs all actions concurrently; `"sequential"` runs them in order.
+- `stopOnError`: only meaningful with `mode="sequential"` — stop after the first failing action.
+
+Each result entry is `{ index, id, tool, ok, durationMs, result | error }`. Children are invoked through the same handlers as direct tool calls, so they respect every permission/allowlist/path-safety check. `batch` cannot call itself.
+
+Example arguments:
+
+```json
+{
+  "mode": "parallel",
+  "actions": [
+    { "id": "ls",   "tool": "list_files", "arguments": { "path": "." } },
+    { "id": "pkg",  "tool": "read_file",  "arguments": { "path": "package.json" } },
+    { "id": "todo", "tool": "search_files", "arguments": { "contentRegex": "TODO" } },
+    { "id": "pwd",  "tool": "run_command", "arguments": { "command": "pwd" } }
+  ]
+}
+```
 
 ## Cross-platform command examples
 
