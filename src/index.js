@@ -41,9 +41,14 @@ export async function run(argv) {
     );
     tunnel = await startTunnel(config);
     log(`[expose-files-mcp] public URL: ${tunnel.url}/mcp`);
-    log(
-      "[expose-files-mcp] connect with header: Authorization: Bearer <authToken>",
-    );
+    if (config.oauth?.enabled) {
+      log(`[expose-files-mcp] OAuth public endpoints (use these with clients):`);
+      log(`[expose-files-mcp]   authorize: ${tunnel.url}/oauth/authorize`);
+      log(`[expose-files-mcp]   token:     ${tunnel.url}/oauth/token`);
+      log(`[expose-files-mcp]   metadata:  ${tunnel.url}/.well-known/oauth-authorization-server`);
+    } else {
+      log("[expose-files-mcp] connect with header: Authorization: Bearer <authToken>");
+    }
   }
 
   const shutdown = () => {
