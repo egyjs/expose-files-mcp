@@ -30,6 +30,8 @@ export async function run(argv) {
     log(`[expose-files-mcp] OAuth authorize: ${http.oauth.issuer}/oauth/authorize`);
     log(`[expose-files-mcp] OAuth token:     ${http.oauth.issuer}/oauth/token`);
     log(`[expose-files-mcp] OAuth metadata:  ${http.oauth.issuer}/.well-known/oauth-authorization-server`);
+  } else if (config.public.noAuth) {
+    log("[expose-files-mcp] WARNING: authentication is DISABLED — /mcp is open to anyone who can reach this server.");
   } else if (config.public.authToken) {
     log("[expose-files-mcp] auth: Bearer token required for /mcp");
   }
@@ -46,6 +48,8 @@ export async function run(argv) {
       log(`[expose-files-mcp]   authorize: ${tunnel.url}/oauth/authorize`);
       log(`[expose-files-mcp]   token:     ${tunnel.url}/oauth/token`);
       log(`[expose-files-mcp]   metadata:  ${tunnel.url}/.well-known/oauth-authorization-server`);
+    } else if (config.public.noAuth) {
+      log("[expose-files-mcp] WARNING: no authentication — anyone with the URL can access your files.");
     } else {
       log("[expose-files-mcp] connect with header: Authorization: Bearer <authToken>");
     }
