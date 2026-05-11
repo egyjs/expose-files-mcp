@@ -30,7 +30,7 @@ function authMiddleware(authToken) {
   };
 }
 
-export async function startHttp(server, config) {
+export async function startHttp(serverFactory, config) {
   const app = express();
   app.use(express.json({ limit: "4mb" }));
   app.use(express.urlencoded({ extended: false }));
@@ -70,7 +70,7 @@ export async function startHttp(server, config) {
         transport.onclose = () => {
           if (transport.sessionId) transports.delete(transport.sessionId);
         };
-        await server.connect(transport);
+        await serverFactory().connect(transport);
       }
 
       await transport.handleRequest(req, res, req.body);

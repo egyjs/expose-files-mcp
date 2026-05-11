@@ -10,9 +10,9 @@ function log(...args) {
 
 export async function run(argv) {
   const { config, configPath } = loadConfig(argv);
-  const { server, toolNames } = buildServer(config);
 
   if (config.transport === "stdio") {
+    const { server, toolNames } = buildServer(config);
     await startStdio(server);
     log(
       `[expose-files-mcp] stdio transport ready. root=${config.rootDir} tools=${toolNames.join(",")}`,
@@ -20,7 +20,8 @@ export async function run(argv) {
     return { config, configPath };
   }
 
-  const http = await startHttp(server, config);
+  const { toolNames } = buildServer(config);
+  const http = await startHttp(() => buildServer(config).server, config);
   log(
     `[expose-files-mcp] http transport listening on http://${http.host}:${http.port}/mcp`,
   );
