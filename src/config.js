@@ -27,6 +27,12 @@ export const DEFAULT_CONFIG = {
     provider: "cloudflared",
     authToken: null,
   },
+  oauth: {
+    enabled: false,
+    issuer: null,
+    clients: [],
+    tokenExpirySeconds: 3600,
+  },
   sensitivePatterns: [
     ".env",
     ".env.*",
@@ -153,6 +159,25 @@ function envOverrides() {
   if (e.MCP_ALLOW_SENSITIVE !== undefined) {
     o.allowSensitive = coerceBool(e.MCP_ALLOW_SENSITIVE);
   }
+  if (e.MCP_OAUTH !== undefined) {
+    o.oauth = { ...(o.oauth || {}), enabled: coerceBool(e.MCP_OAUTH) };
+  }
+  if (e.MCP_OAUTH_ISSUER) {
+    o.oauth = { ...(o.oauth || {}), issuer: e.MCP_OAUTH_ISSUER };
+  }
+  if (e.MCP_OAUTH_TOKEN_EXPIRY) {
+    o.oauth = { ...(o.oauth || {}), tokenExpirySeconds: coerceInt(e.MCP_OAUTH_TOKEN_EXPIRY) };
+  }
+  if (e.MCP_OAUTH_CLIENT_ID) {
+    const client = {
+      clientId: e.MCP_OAUTH_CLIENT_ID,
+      clientSecret: e.MCP_OAUTH_CLIENT_SECRET || null,
+      redirectUris: e.MCP_OAUTH_REDIRECT_URIS
+        ? e.MCP_OAUTH_REDIRECT_URIS.split(",").map((s) => s.trim()).filter(Boolean)
+        : [],
+    };
+    o.oauth = { ...(o.oauth || {}), clients: [client] };
+  }
   return o;
 }
 
@@ -210,6 +235,25 @@ function cliOverrides(cliArgs) {
   }
   if (cliArgs["allow-sensitive"] !== undefined) {
     o.allowSensitive = coerceBool(cliArgs["allow-sensitive"]);
+  }
+  if (cliArgs["oauth"] !== undefined) {
+    o.oauth = { ...(o.oauth || {}), enabled: coerceBool(cliArgs["oauth"]) };
+  }
+  if (cliArgs["oauth-issuer"]) {
+    o.oauth = { ...(o.oauth || {}), issuer: cliArgs["oauth-issuer"] };
+  }
+  if (cliArgs["oauth-token-expiry"]) {
+    o.oauth = { ...(o.oauth || {}), tokenExpirySeconds: coerceInt(cliArgs["oauth-token-expiry"]) };
+  }
+  if (cliArgs["oauth-client-id"]) {
+    const client = {
+      clientId: cliArgs["oauth-client-id"],
+      clientSecret: cliArgs["oauth-client-secret"] || null,
+      redirectUris: cliArgs["oauth-redirect-uris"]
+        ? String(cliArgs["oauth-redirect-uris"]).split(",").map((s) => s.trim()).filter(Boolean)
+        : [],
+    };
+    o.oauth = { ...(o.oauth || {}), clients: [client] };
   }
   return o;
 }
@@ -282,6 +326,25 @@ function validateConfig(cfg) {
       );
     }
   }
+  if (cfg.oauth.enabled) {
+    if (cfg.transport !== "http") {
+      throw new Error("oauth.enabled requires transport=http.");
+    }
+    if (!cfg.oauth.clients || cfg.oauth.clients.length === 0) {
+      throw new Error("oauth.enabled requires at least one entry in oauth.clients.");
+    }
+    for (const client of cfg.oauth.clients) {
+      if (!client.clientId) {
+        throw new Error("Each OAuth client must have a clientId.");
+      }
+      if (!Array.isArray(client.redirectUris) || client.redirectUris.length === 0) {
+        throw new Error(`OAuth client "${client.clientId}" must have at least one redirectUri.`);
+      }
+    }
+    if (!Number.isInteger(cfg.oauth.tokenExpirySeconds) || cfg.oauth.tokenExpirySeconds <= 0) {
+      throw new Error("oauth.tokenExpirySeconds must be a positive integer.");
+    }
+  }
   if (!Number.isInteger(cfg.terminal.timeoutMs) || cfg.terminal.timeoutMs <= 0) {
     throw new Error("terminal.timeoutMs must be a positive integer.");
   }
@@ -297,6 +360,12 @@ export function redactConfig(cfg) {
   const clone = JSON.parse(JSON.stringify(cfg));
   if (clone.public && clone.public.authToken) {
     clone.public.authToken = "***redacted***";
+  }
+  if (clone.oauth && Array.isArray(clone.oauth.clients)) {
+    clone.oauth.clients = clone.oauth.clients.map((c) => ({
+      ...c,
+      clientSecret: c.clientSecret ? "***redacted***" : null,
+    }));
   }
   return clone;
 }

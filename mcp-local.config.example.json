@@ -36,6 +36,18 @@
     "provider": "cloudflared",
     "authToken": "change-me"
   },
+  "oauth": {
+    "enabled": false,
+    "issuer": null,
+    "clients": [
+      {
+        "clientId": "my-client",
+        "clientSecret": "my-secret",
+        "redirectUris": ["http://localhost:3000/callback"]
+      }
+    ],
+    "tokenExpirySeconds": 3600
+  },
   "sensitivePatterns": [
     ".env",
     ".env.*",
