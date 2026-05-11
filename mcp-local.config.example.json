@@ -59,5 +59,10 @@
     ".aws/credentials",
     ".ssh/*"
   ],
-  "allowSensitive": false
+  "allowSensitive": false,
+  "dashboard": {
+    "enabled": true,
+    "host": "127.0.0.1",
+    "port": 7821
+  }
 }
