@@ -1,69 +1,139 @@
+import { readFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
+import path from "node:path";
 import { loadConfig, redactConfig } from "./config.js";
 import { buildServer } from "./server.js";
 import { startStdio } from "./transports/stdio.js";
 import { startHttp } from "./transports/http.js";
 import { startTunnel } from "./tunnel/index.js";
 import { startDashboard } from "./dashboard/index.js";
+import { blank, title, section, kv, ready, warn } from "./log.js";
 
-function log(...args) {
-  process.stderr.write(args.join(" ") + "\n");
+const pkg = JSON.parse(
+  readFileSync(
+    path.join(path.dirname(fileURLToPath(import.meta.url)), "..", "package.json"),
+    "utf8",
+  ),
+);
+
+function describeAuth(config) {
+  if (config.oauth?.enabled) return "OAuth 2.0";
+  if (config.public?.noAuth) return "none (disabled)";
+  if (config.public?.authToken) return "Bearer token";
+  return "none";
+}
+
+function describeTerminal(config) {
+  if (!config.permissions.terminal) return "disabled";
+  const n = config.terminal.allowedCommands.length;
+  return `enabled (${n} allowed ${n === 1 ? "command" : "commands"})`;
+}
+
+function logCore(config, toolNames) {
+  title(pkg.name, pkg.version);
+  blank();
+  section("Server");
+  kv("Root",       config.rootDir);
+  kv("Files",      config.permissions.files);
+  kv("Terminal",   describeTerminal(config));
+  kv("Transport",  config.transport);
+  kv("Tools",      `${toolNames.length} (${toolNames.join(", ")})`);
+}
+
+function logDashboard(dashboard) {
+  if (!dashboard) return;
+  blank();
+  section("Dashboard");
+  kv("URL", dashboard.url);
+}
+
+function logHttp(config, http) {
+  blank();
+  section("HTTP");
+  kv("Listen", `http://${http.host}:${http.port}/mcp`);
+  kv("Auth",   describeAuth(config));
+}
+
+function logOAuth(http) {
+  if (!http.oauth) return;
+  blank();
+  section("OAuth 2.0");
+  kv("Issuer",    http.oauth.issuer);
+  kv("Authorize", `${http.oauth.issuer}/oauth/authorize`);
+  kv("Token",     `${http.oauth.issuer}/oauth/token`);
+  kv("Metadata",  `${http.oauth.issuer}/.well-known/oauth-authorization-server`);
+}
+
+function logTunnel(config, tunnel) {
+  blank();
+  section(`Tunnel (${config.public.provider})`);
+  kv("Public", `${tunnel.url}/mcp`);
+  if (config.oauth?.enabled) {
+    kv("Authorize", `${tunnel.url}/oauth/authorize`);
+    kv("Token",     `${tunnel.url}/oauth/token`);
+    kv("Metadata",  `${tunnel.url}/.well-known/oauth-authorization-server`);
+  } else if (config.public.authToken) {
+    kv("Header", "Authorization: Bearer <authToken>");
+  }
+}
+
+function logSecurityWarnings(config) {
+  const msgs = [];
+  if (config.public?.enabled) {
+    msgs.push("Public tunnel is exposing this server — never expose unrestricted filesystem or terminal access to the internet.");
+  }
+  if (config.public?.noAuth) {
+    msgs.push("Authentication is DISABLED — /mcp is open to anyone who can reach this server.");
+  }
+  if (config.allowSensitive) {
+    msgs.push("allowSensitive=true — sensitive file patterns are no longer blocked.");
+  }
+  if (config.terminal?.allowShellMetachars) {
+    msgs.push("terminal.allowShellMetachars=true — pipes, redirection and chaining are permitted.");
+  }
+  if (msgs.length === 0) return;
+  blank();
+  for (const m of msgs) warn(m);
 }
 
 export async function run(argv) {
   const { config, configPath } = loadConfig(argv);
 
   const dashboard = await startDashboard(config);
-  if (dashboard) {
-    log(`[expose-files-mcp] dashboard: ${dashboard.url}`);
-  }
 
   if (config.transport === "stdio") {
     const { server, toolNames } = buildServer(config);
     await startStdio(server);
-    log(
-      `[expose-files-mcp] stdio transport ready. root=${config.rootDir} tools=${toolNames.join(",")}`,
-    );
+
+    logCore(config, toolNames);
+    logDashboard(dashboard);
+    logSecurityWarnings(config);
+    blank();
+    ready("stdio transport ready");
+
     return { config, configPath, dashboard };
   }
 
   const { toolNames } = buildServer(config);
   const http = await startHttp(() => buildServer(config).server, config);
-  log(
-    `[expose-files-mcp] http transport listening on http://${http.host}:${http.port}/mcp`,
-  );
-  log(`[expose-files-mcp] root=${config.rootDir} tools=${toolNames.join(",")}`);
-  if (config.oauth?.enabled && http.oauth) {
-    log(`[expose-files-mcp] OAuth 2.0 enabled — issuer: ${http.oauth.issuer}`);
-    log(`[expose-files-mcp] OAuth authorize: ${http.oauth.issuer}/oauth/authorize`);
-    log(`[expose-files-mcp] OAuth token:     ${http.oauth.issuer}/oauth/token`);
-    log(`[expose-files-mcp] OAuth metadata:  ${http.oauth.issuer}/.well-known/oauth-authorization-server`);
-  } else if (config.public.noAuth) {
-    log("[expose-files-mcp] WARNING: authentication is DISABLED — /mcp is open to anyone who can reach this server.");
-  } else if (config.public.authToken) {
-    log("[expose-files-mcp] auth: Bearer token required for /mcp");
-  }
 
   let tunnel = null;
   if (config.public.enabled) {
-    log(
-      `[expose-files-mcp] starting ${config.public.provider} tunnel — DO NOT expose unrestricted filesystem or terminal to the public internet.`,
-    );
     tunnel = await startTunnel(config);
-    log(`[expose-files-mcp] public URL: ${tunnel.url}/mcp`);
-    if (config.oauth?.enabled) {
-      log(`[expose-files-mcp] OAuth public endpoints (use these with clients):`);
-      log(`[expose-files-mcp]   authorize: ${tunnel.url}/oauth/authorize`);
-      log(`[expose-files-mcp]   token:     ${tunnel.url}/oauth/token`);
-      log(`[expose-files-mcp]   metadata:  ${tunnel.url}/.well-known/oauth-authorization-server`);
-    } else if (config.public.noAuth) {
-      log("[expose-files-mcp] WARNING: no authentication — anyone with the URL can access your files.");
-    } else {
-      log("[expose-files-mcp] connect with header: Authorization: Bearer <authToken>");
-    }
   }
 
+  logCore(config, toolNames);
+  logHttp(config, http);
+  if (config.oauth?.enabled && http.oauth) logOAuth(http);
+  if (tunnel) logTunnel(config, tunnel);
+  logDashboard(dashboard);
+  logSecurityWarnings(config);
+  blank();
+  ready("http transport ready");
+
   const shutdown = () => {
-    log("[expose-files-mcp] shutting down...");
+    blank();
+    warn("Shutting down…");
     if (tunnel) tunnel.stop();
     process.exit(0);
   };
