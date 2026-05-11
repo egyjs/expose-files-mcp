@@ -25,7 +25,12 @@ export async function run(argv) {
     `[expose-files-mcp] http transport listening on http://${http.host}:${http.port}/mcp`,
   );
   log(`[expose-files-mcp] root=${config.rootDir} tools=${toolNames.join(",")}`);
-  if (config.public.authToken) {
+  if (config.oauth?.enabled && http.oauth) {
+    log(`[expose-files-mcp] OAuth 2.0 enabled — issuer: ${http.oauth.issuer}`);
+    log(`[expose-files-mcp] OAuth authorize: ${http.oauth.issuer}/oauth/authorize`);
+    log(`[expose-files-mcp] OAuth token:     ${http.oauth.issuer}/oauth/token`);
+    log(`[expose-files-mcp] OAuth metadata:  ${http.oauth.issuer}/.well-known/oauth-authorization-server`);
+  } else if (config.public.authToken) {
     log("[expose-files-mcp] auth: Bearer token required for /mcp");
   }
 

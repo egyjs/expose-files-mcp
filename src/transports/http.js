@@ -2,6 +2,7 @@ import express from "express";
 import crypto from "node:crypto";
 import { randomUUID } from "node:crypto";
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
+import { createOAuthServer } from "../auth/oauth.js";
 
 function timingSafeEqual(a, b) {
   const ab = Buffer.from(a || "", "utf8");
@@ -32,13 +33,27 @@ function authMiddleware(authToken) {
 export async function startHttp(server, config) {
   const app = express();
   app.use(express.json({ limit: "4mb" }));
+  app.use(express.urlencoded({ extended: false }));
 
   app.get("/healthz", (_req, res) => {
     res.json({ ok: true, name: "expose-files-mcp", version: "0.1.0" });
   });
 
   const transports = new Map();
-  const mcpAuth = authMiddleware(config.public.authToken);
+
+  let mcpAuth;
+  let oauth = null;
+
+  if (config.oauth?.enabled) {
+    oauth = createOAuthServer(config);
+    app.get("/.well-known/oauth-authorization-server", oauth.metadataHandler);
+    app.get("/oauth/authorize",  oauth.authorizeGetHandler);
+    app.post("/oauth/authorize", oauth.authorizePostHandler);
+    app.post("/oauth/token",     oauth.tokenHandler);
+    mcpAuth = oauth.tokenMiddleware;
+  } else {
+    mcpAuth = authMiddleware(config.public.authToken);
+  }
 
   app.post("/mcp", mcpAuth, async (req, res) => {
     try {
@@ -85,5 +100,5 @@ export async function startHttp(server, config) {
   await new Promise((resolve) => {
     app.listen(config.http.port, config.http.host, resolve);
   });
-  return { app, port: config.http.port, host: config.http.host };
+  return { app, port: config.http.port, host: config.http.host, oauth };
 }
