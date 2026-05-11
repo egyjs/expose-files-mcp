@@ -14,6 +14,7 @@ A configurable [Model Context Protocol](https://modelcontextprotocol.io) server 
 - [Public usage with cloudflared](#public-usage-with-cloudflared)
 - [Public usage with ngrok](#public-usage-with-ngrok)
 - [HTTP with OAuth 2.0](#http-with-oauth-20)
+- [Local runtime dashboard](#local-runtime-dashboard)
 - [Configuration options](#configuration-options)
 - [CLI options](#cli-options)
 - [Example config files](#example-config-files)
@@ -34,6 +35,7 @@ A configurable [Model Context Protocol](https://modelcontextprotocol.io) server 
 - Supports two transports: `stdio` for local clients, and `http` (`/mcp` endpoint, Streamable HTTP) for remote clients.
 - Optionally spawns `cloudflared` or `ngrok` to publish the HTTP server, and prints the public URL.
 - Supports **OAuth 2.0 authorization code flow** (with PKCE) as a built-in authorization server on the HTTP transport.
+- Ships a small **local runtime dashboard** (loopback-only) that can change `rootDir`, permissions, the terminal allowlist, sensitive patterns and other runtime-mutable settings on the fly — no restart, no new tunnel.
 - Reads configuration from a JSON file, environment variables, and CLI flags (in order of increasing precedence).
 
 ## Installation
@@ -266,6 +268,56 @@ Public clients that cannot keep a secret can omit `clientSecret` and use PKCE in
 - Tokens and auth codes are stored in memory. Restarting the server invalidates all issued tokens.
 - Multiple clients can be listed under `oauth.clients`; each has its own `clientId`, optional `clientSecret`, and `redirectUris`.
 
+## Local runtime dashboard
+
+Every time the server boots it also starts a tiny dashboard on `http://127.0.0.1:7821` (loopback only — never reachable via the public tunnel). Open it in a browser to change configuration without restarting the MCP server or recreating the tunnel.
+
+What it can change at runtime (next MCP tool call picks up the new value):
+
+- `rootDir`
+- `permissions.files` and `permissions.terminal`
+- `terminal.shell`, `terminal.allowedCommands`, `terminal.cwd`, `terminal.timeoutMs`, `terminal.maxOutputBytes`, `terminal.allowShellMetachars`, `terminal.env`
+- `sensitivePatterns` and `allowSensitive`
+
+What requires a restart (the dashboard shows these as read-only):
+
+- `transport`, `http.host`, `http.port`
+- `public.*` — changing the tunnel needs a restart so the existing tunnel can be torn down and rebuilt
+- `oauth.*`
+
+### HTTP API
+
+The dashboard is backed by a small JSON API on the same port; you can script it instead of clicking:
+
+- `GET  /api/config` — current config (with secrets redacted)
+- `GET  /api/editable-fields` — list of dotted paths that can be updated at runtime
+- `POST /api/config` — apply a partial patch; returns the new config or `400 { "error": "..." }`
+
+```bash
+curl -s -X POST -H 'content-type: application/json' \
+  -d '{"permissions":{"files":"read-write","terminal":true},"terminal":{"allowedCommands":["ls","cat","grep"]}}' \
+  http://127.0.0.1:7821/api/config
+```
+
+Updates run through the same validator as startup, so invalid values (bad permission string, missing `rootDir`, etc.) are rejected with a clear message and the running config is left untouched.
+
+### Disabling or rebinding
+
+```jsonc
+{
+  "dashboard": {
+    "enabled": true,
+    "host": "127.0.0.1",
+    "port": 7821
+  }
+}
+```
+
+Equivalent CLI flags: `--dashboard <bool>`, `--dashboard-host <host>`, `--dashboard-port <n>`.
+Equivalent env vars: `MCP_DASHBOARD`, `MCP_DASHBOARD_HOST`, `MCP_DASHBOARD_PORT`.
+
+Keep `dashboard.host` on `127.0.0.1`. Anyone who can reach the dashboard can change file permissions and the terminal allowlist on the running server.
+
 ## Configuration options
 
 Configuration is merged in this order (later wins):
@@ -300,6 +352,9 @@ Configuration is merged in this order (later wins):
 | `oauth.tokenExpirySeconds` | int | `3600` | Lifetime of issued access tokens in seconds. |
 | `sensitivePatterns` | string[] | `.env`, `*.pem`, `*.key`, `id_rsa`, `id_ed25519`, `.npmrc`, … | Globs that file tools refuse by default. |
 | `allowSensitive` | boolean | `false` | Override `sensitivePatterns`. |
+| `dashboard.enabled` | boolean | `true` | Start the local runtime config dashboard. |
+| `dashboard.host` | string | `127.0.0.1` | Bind host for the dashboard. Keep on loopback. |
+| `dashboard.port` | int | `7821` | Bind port for the dashboard. |
 
 ## CLI options
 
@@ -326,11 +381,14 @@ Configuration is merged in this order (later wins):
 --oauth-client-secret <s>   Client secret for the above client
 --oauth-redirect-uris <u>   Comma-separated redirect URIs for the above client
 --oauth-token-expiry <n>    Access token lifetime in seconds (default: 3600)
+--dashboard <bool>          Enable the local runtime dashboard (default: true)
+--dashboard-host <host>     Dashboard bind host (default: 127.0.0.1)
+--dashboard-port <n>        Dashboard bind port (default: 7821)
 --help, -h                  Show help
 --version, -v               Print version
 ```
 
-Equivalent environment variables: `MCP_ROOT_DIR`, `MCP_FILE_PERMISSIONS`, `MCP_TERMINAL`, `MCP_SHELL`, `MCP_ALLOWED_COMMANDS`, `MCP_TIMEOUT_MS`, `MCP_MAX_OUTPUT_BYTES`, `MCP_TRANSPORT`, `MCP_HTTP_HOST`, `MCP_HTTP_PORT`, `MCP_PUBLIC`, `MCP_PUBLIC_PROVIDER`, `MCP_AUTH_TOKEN`, `MCP_NO_AUTH`, `MCP_ALLOW_SENSITIVE`, `MCP_OAUTH`, `MCP_OAUTH_ISSUER`, `MCP_OAUTH_CLIENT_ID`, `MCP_OAUTH_CLIENT_SECRET`, `MCP_OAUTH_REDIRECT_URIS`, `MCP_OAUTH_TOKEN_EXPIRY`, `MCP_CONFIG`.
+Equivalent environment variables: `MCP_ROOT_DIR`, `MCP_FILE_PERMISSIONS`, `MCP_TERMINAL`, `MCP_SHELL`, `MCP_ALLOWED_COMMANDS`, `MCP_TIMEOUT_MS`, `MCP_MAX_OUTPUT_BYTES`, `MCP_TRANSPORT`, `MCP_HTTP_HOST`, `MCP_HTTP_PORT`, `MCP_PUBLIC`, `MCP_PUBLIC_PROVIDER`, `MCP_AUTH_TOKEN`, `MCP_NO_AUTH`, `MCP_ALLOW_SENSITIVE`, `MCP_OAUTH`, `MCP_OAUTH_ISSUER`, `MCP_OAUTH_CLIENT_ID`, `MCP_OAUTH_CLIENT_SECRET`, `MCP_OAUTH_REDIRECT_URIS`, `MCP_OAUTH_TOKEN_EXPIRY`, `MCP_DASHBOARD`, `MCP_DASHBOARD_HOST`, `MCP_DASHBOARD_PORT`, `MCP_CONFIG`.
 
 ## Example config files
 
