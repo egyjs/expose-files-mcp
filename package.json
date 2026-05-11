@@ -1,0 +1,51 @@
+{
+  "name": "expose-files-mcp",
+  "version": "0.1.0",
+  "description": "A configurable MCP server that exposes local files and terminal commands, with optional public tunneling via Cloudflare Tunnel or ngrok.",
+  "license": "MIT",
+  "author": "egyjs",
+  "type": "module",
+  "main": "src/index.js",
+  "bin": {
+    "expose-files-mcp": "bin/expose-files-mcp.js"
+  },
+  "files": [
+    "bin",
+    "src",
+    "mcp-local.config.example.json",
+    "README.md",
+    "LICENSE"
+  ],
+  "engines": {
+    "node": ">=18.17"
+  },
+  "scripts": {
+    "start": "node bin/expose-files-mcp.js",
+    "dev": "node bin/expose-files-mcp.js --transport stdio",
+    "test": "node --test test/*.test.js"
+  },
+  "keywords": [
+    "mcp",
+    "model-context-protocol",
+    "files",
+    "terminal",
+    "cloudflared",
+    "ngrok",
+    "tunnel",
+    "ai-tools",
+    "claude"
+  ],
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.0.4",
+    "express": "^4.19.2",
+    "zod": "^3.23.8"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/egyjs/expose-files-mcp.git"
+  },
+  "homepage": "https://github.com/egyjs/expose-files-mcp#readme",
+  "bugs": {
+    "url": "https://github.com/egyjs/expose-files-mcp/issues"
+  }
+}

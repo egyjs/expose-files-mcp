@@ -1,0 +1,51 @@
+{
+  "rootDir": "./workspace",
+  "permissions": {
+    "files": "read-write",
+    "terminal": true
+  },
+  "terminal": {
+    "shell": "auto",
+    "allowedCommands": [
+      "pwd",
+      "ls",
+      "dir",
+      "grep",
+      "find",
+      "cat",
+      "type",
+      "echo",
+      "ps",
+      "nl",
+      "printf",
+      "where",
+      "Get-ChildItem"
+    ],
+    "timeoutMs": 10000,
+    "maxOutputBytes": 20000,
+    "env": {},
+    "cwd": null
+  },
+  "transport": "stdio",
+  "http": {
+    "host": "127.0.0.1",
+    "port": 8080
+  },
+  "public": {
+    "enabled": false,
+    "provider": "cloudflared",
+    "authToken": "change-me"
+  },
+  "sensitivePatterns": [
+    ".env",
+    ".env.*",
+    "*.pem",
+    "*.key",
+    "id_rsa",
+    "id_ed25519",
+    ".npmrc",
+    ".aws/credentials",
+    ".ssh/*"
+  ],
+  "allowSensitive": false
+}

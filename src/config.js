@@ -1,0 +1,302 @@
+import fs from "node:fs";
+import path from "node:path";
+import os from "node:os";
+
+export const DEFAULT_CONFIG = {
+  rootDir: process.cwd(),
+  permissions: {
+    files: "read-only",
+    terminal: false,
+  },
+  terminal: {
+    shell: "auto",
+    allowedCommands: [],
+    timeoutMs: 10000,
+    maxOutputBytes: 20000,
+    env: {},
+    cwd: null,
+    allowShellMetachars: false,
+  },
+  transport: "stdio",
+  http: {
+    host: "127.0.0.1",
+    port: 8080,
+  },
+  public: {
+    enabled: false,
+    provider: "cloudflared",
+    authToken: null,
+  },
+  sensitivePatterns: [
+    ".env",
+    ".env.*",
+    "*.pem",
+    "*.key",
+    "id_rsa",
+    "id_ed25519",
+    ".npmrc",
+  ],
+  allowSensitive: false,
+};
+
+const FILE_PERMISSIONS = new Set([
+  "read-only",
+  "write-only",
+  "read-write",
+  "no",
+  "none",
+]);
+
+function deepMerge(target, source) {
+  if (source == null) return target;
+  if (typeof source !== "object" || Array.isArray(source)) return source;
+  const out = { ...target };
+  for (const [key, value] of Object.entries(source)) {
+    if (
+      value &&
+      typeof value === "object" &&
+      !Array.isArray(value) &&
+      target[key] &&
+      typeof target[key] === "object" &&
+      !Array.isArray(target[key])
+    ) {
+      out[key] = deepMerge(target[key], value);
+    } else {
+      out[key] = value;
+    }
+  }
+  return out;
+}
+
+export function parseArgs(argv) {
+  const args = {};
+  for (let i = 0; i < argv.length; i++) {
+    const arg = argv[i];
+    if (!arg.startsWith("--")) continue;
+    const key = arg.slice(2);
+    if (key.includes("=")) {
+      const [k, v] = key.split(/=(.+)/);
+      args[k] = v;
+    } else {
+      const next = argv[i + 1];
+      if (next === undefined || next.startsWith("--")) {
+        args[key] = true;
+      } else {
+        args[key] = next;
+        i++;
+      }
+    }
+  }
+  return args;
+}
+
+function coerceBool(v) {
+  if (typeof v === "boolean") return v;
+  if (typeof v !== "string") return Boolean(v);
+  return ["1", "true", "yes", "on"].includes(v.toLowerCase());
+}
+
+function coerceInt(v) {
+  if (typeof v === "number") return v;
+  const n = parseInt(v, 10);
+  return Number.isFinite(n) ? n : undefined;
+}
+
+function envOverrides() {
+  const e = process.env;
+  const o = {};
+  if (e.MCP_ROOT_DIR) o.rootDir = e.MCP_ROOT_DIR;
+  if (e.MCP_FILE_PERMISSIONS) {
+    o.permissions = { ...(o.permissions || {}), files: e.MCP_FILE_PERMISSIONS };
+  }
+  if (e.MCP_TERMINAL !== undefined) {
+    o.permissions = {
+      ...(o.permissions || {}),
+      terminal: coerceBool(e.MCP_TERMINAL),
+    };
+  }
+  if (e.MCP_SHELL) o.terminal = { ...(o.terminal || {}), shell: e.MCP_SHELL };
+  if (e.MCP_ALLOWED_COMMANDS) {
+    o.terminal = {
+      ...(o.terminal || {}),
+      allowedCommands: e.MCP_ALLOWED_COMMANDS.split(",")
+        .map((s) => s.trim())
+        .filter(Boolean),
+    };
+  }
+  if (e.MCP_TIMEOUT_MS) {
+    o.terminal = {
+      ...(o.terminal || {}),
+      timeoutMs: coerceInt(e.MCP_TIMEOUT_MS),
+    };
+  }
+  if (e.MCP_MAX_OUTPUT_BYTES) {
+    o.terminal = {
+      ...(o.terminal || {}),
+      maxOutputBytes: coerceInt(e.MCP_MAX_OUTPUT_BYTES),
+    };
+  }
+  if (e.MCP_TRANSPORT) o.transport = e.MCP_TRANSPORT;
+  if (e.MCP_HTTP_HOST) o.http = { ...(o.http || {}), host: e.MCP_HTTP_HOST };
+  if (e.MCP_HTTP_PORT) {
+    o.http = { ...(o.http || {}), port: coerceInt(e.MCP_HTTP_PORT) };
+  }
+  if (e.MCP_PUBLIC !== undefined) {
+    o.public = { ...(o.public || {}), enabled: coerceBool(e.MCP_PUBLIC) };
+  }
+  if (e.MCP_PUBLIC_PROVIDER) {
+    o.public = { ...(o.public || {}), provider: e.MCP_PUBLIC_PROVIDER };
+  }
+  if (e.MCP_AUTH_TOKEN) {
+    o.public = { ...(o.public || {}), authToken: e.MCP_AUTH_TOKEN };
+  }
+  if (e.MCP_ALLOW_SENSITIVE !== undefined) {
+    o.allowSensitive = coerceBool(e.MCP_ALLOW_SENSITIVE);
+  }
+  return o;
+}
+
+function cliOverrides(cliArgs) {
+  const o = {};
+  if (cliArgs["root"] || cliArgs["root-dir"]) {
+    o.rootDir = cliArgs["root"] || cliArgs["root-dir"];
+  }
+  if (cliArgs["files"]) {
+    o.permissions = { ...(o.permissions || {}), files: cliArgs["files"] };
+  }
+  if (cliArgs["terminal"] !== undefined) {
+    o.permissions = {
+      ...(o.permissions || {}),
+      terminal: coerceBool(cliArgs["terminal"]),
+    };
+  }
+  if (cliArgs["shell"]) {
+    o.terminal = { ...(o.terminal || {}), shell: cliArgs["shell"] };
+  }
+  if (cliArgs["allowed-commands"]) {
+    o.terminal = {
+      ...(o.terminal || {}),
+      allowedCommands: String(cliArgs["allowed-commands"])
+        .split(",")
+        .map((s) => s.trim())
+        .filter(Boolean),
+    };
+  }
+  if (cliArgs["timeout-ms"]) {
+    o.terminal = {
+      ...(o.terminal || {}),
+      timeoutMs: coerceInt(cliArgs["timeout-ms"]),
+    };
+  }
+  if (cliArgs["max-output-bytes"]) {
+    o.terminal = {
+      ...(o.terminal || {}),
+      maxOutputBytes: coerceInt(cliArgs["max-output-bytes"]),
+    };
+  }
+  if (cliArgs["transport"]) o.transport = cliArgs["transport"];
+  if (cliArgs["host"]) o.http = { ...(o.http || {}), host: cliArgs["host"] };
+  if (cliArgs["port"]) {
+    o.http = { ...(o.http || {}), port: coerceInt(cliArgs["port"]) };
+  }
+  if (cliArgs["public"] !== undefined) {
+    o.public = { ...(o.public || {}), enabled: coerceBool(cliArgs["public"]) };
+  }
+  if (cliArgs["provider"]) {
+    o.public = { ...(o.public || {}), provider: cliArgs["provider"] };
+  }
+  if (cliArgs["auth-token"]) {
+    o.public = { ...(o.public || {}), authToken: cliArgs["auth-token"] };
+  }
+  if (cliArgs["allow-sensitive"] !== undefined) {
+    o.allowSensitive = coerceBool(cliArgs["allow-sensitive"]);
+  }
+  return o;
+}
+
+function loadFile(configPath) {
+  if (!configPath) return {};
+  const abs = path.resolve(configPath);
+  if (!fs.existsSync(abs)) {
+    if (configPath === "mcp-local.config.json") return {};
+    throw new Error(`Config file not found: ${abs}`);
+  }
+  const raw = fs.readFileSync(abs, "utf8");
+  try {
+    return JSON.parse(raw);
+  } catch (err) {
+    throw new Error(`Invalid JSON in config file ${abs}: ${err.message}`);
+  }
+}
+
+export function detectShell(shellPref) {
+  if (shellPref && shellPref !== "auto") return shellPref;
+  if (process.platform === "win32") {
+    return process.env.ComSpec || "cmd.exe";
+  }
+  return process.env.SHELL || "/bin/sh";
+}
+
+export function loadConfig(argv = process.argv.slice(2)) {
+  const cli = parseArgs(argv);
+  const configPath = cli["config"] || process.env.MCP_CONFIG || "mcp-local.config.json";
+  const fileConfig = loadFile(configPath);
+
+  let cfg = deepMerge(DEFAULT_CONFIG, fileConfig);
+  cfg = deepMerge(cfg, envOverrides());
+  cfg = deepMerge(cfg, cliOverrides(cli));
+
+  cfg.rootDir = path.resolve(cfg.rootDir.replace(/^~(?=$|\/|\\)/, os.homedir()));
+  cfg.terminal.shell = detectShell(cfg.terminal.shell);
+
+  validateConfig(cfg);
+  return { config: cfg, cliArgs: cli, configPath };
+}
+
+function validateConfig(cfg) {
+  if (!FILE_PERMISSIONS.has(cfg.permissions.files)) {
+    throw new Error(
+      `Invalid permissions.files: "${cfg.permissions.files}". Valid: ${[...FILE_PERMISSIONS].join(", ")}.`,
+    );
+  }
+  if (typeof cfg.permissions.terminal !== "boolean") {
+    cfg.permissions.terminal = Boolean(cfg.permissions.terminal);
+  }
+  if (!["stdio", "http"].includes(cfg.transport)) {
+    throw new Error(`Invalid transport: "${cfg.transport}". Use "stdio" or "http".`);
+  }
+  if (cfg.public.enabled) {
+    if (cfg.transport !== "http") {
+      throw new Error(
+        "public.enabled requires transport=http. Tunneling exposes the HTTP server.",
+      );
+    }
+    if (!cfg.public.authToken || cfg.public.authToken === "change-me") {
+      throw new Error(
+        "public.enabled requires public.authToken to be set to a strong value (not 'change-me').",
+      );
+    }
+    if (!["cloudflared", "ngrok"].includes(cfg.public.provider)) {
+      throw new Error(
+        `Invalid public.provider: "${cfg.public.provider}". Use "cloudflared" or "ngrok".`,
+      );
+    }
+  }
+  if (!Number.isInteger(cfg.terminal.timeoutMs) || cfg.terminal.timeoutMs <= 0) {
+    throw new Error("terminal.timeoutMs must be a positive integer.");
+  }
+  if (
+    !Number.isInteger(cfg.terminal.maxOutputBytes) ||
+    cfg.terminal.maxOutputBytes <= 0
+  ) {
+    throw new Error("terminal.maxOutputBytes must be a positive integer.");
+  }
+}
+
+export function redactConfig(cfg) {
+  const clone = JSON.parse(JSON.stringify(cfg));
+  if (clone.public && clone.public.authToken) {
+    clone.public.authToken = "***redacted***";
+  }
+  return clone;
+}
