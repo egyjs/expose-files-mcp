@@ -316,9 +316,11 @@ function validateConfig(cfg) {
       );
     }
     if (!cfg.public.authToken || cfg.public.authToken === "change-me") {
-      throw new Error(
-        "public.enabled requires public.authToken to be set to a strong value (not 'change-me').",
-      );
+      if (!cfg.oauth.enabled) {
+        throw new Error(
+          "public.enabled requires public.authToken to be set to a strong value (not 'change-me'), or enable oauth instead.",
+        );
+      }
     }
     if (!["cloudflared", "ngrok"].includes(cfg.public.provider)) {
       throw new Error(
