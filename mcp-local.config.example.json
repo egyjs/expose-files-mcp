@@ -64,5 +64,8 @@
     "enabled": true,
     "host": "127.0.0.1",
     "port": 7821
+  },
+  "logging": {
+    "actions": true
   }
 }

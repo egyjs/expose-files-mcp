@@ -7,7 +7,7 @@ import { startStdio } from "./transports/stdio.js";
 import { startHttp } from "./transports/http.js";
 import { startTunnel } from "./tunnel/index.js";
 import { startDashboard } from "./dashboard/index.js";
-import { blank, title, section, kv, ready, warn } from "./log.js";
+import { blank, title, section, kv, ready, warn, setActionLoggingEnabled } from "./log.js";
 
 const pkg = JSON.parse(
   readFileSync(
@@ -38,6 +38,7 @@ function logCore(config, toolNames) {
   kv("Terminal",   describeTerminal(config));
   kv("Transport",  config.transport);
   kv("Tools",      `${toolNames.length} (${toolNames.join(", ")})`);
+  kv("Logging",    config.logging?.actions === false ? "disabled" : "tool actions");
 }
 
 function logDashboard(dashboard) {
@@ -98,6 +99,8 @@ function logSecurityWarnings(config) {
 
 export async function run(argv) {
   const { config, configPath } = loadConfig(argv);
+
+  setActionLoggingEnabled(config.logging?.actions !== false);
 
   const dashboard = await startDashboard(config);
 

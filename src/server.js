@@ -4,11 +4,19 @@ import { fileTools } from "./tools/files.js";
 import { terminalTools } from "./tools/terminal.js";
 import { metaTools } from "./tools/meta.js";
 import { batchTools } from "./tools/batch.js";
+import { action as logAction } from "./log.js";
 
 function wrapHandler(name, handler) {
   return async (args) => {
+    const started = Date.now();
     try {
       const result = await handler(args ?? {});
+      logAction({
+        tool: name,
+        ok: true,
+        durationMs: Date.now() - started,
+        args,
+      });
       return {
         content: [
           {
@@ -21,6 +29,13 @@ function wrapHandler(name, handler) {
         ],
       };
     } catch (err) {
+      logAction({
+        tool: name,
+        ok: false,
+        durationMs: Date.now() - started,
+        args,
+        error: `${err.name || "Error"}: ${err.message}`,
+      });
       return {
         isError: true,
         content: [

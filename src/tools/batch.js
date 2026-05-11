@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { action as logAction } from "../log.js";
 
 export function batchTools(registry) {
   return [
@@ -62,18 +63,36 @@ export function batchTools(registry) {
           const started = Date.now();
           try {
             const result = await handler(action.arguments ?? {});
+            const durationMs = Date.now() - started;
+            logAction({
+              tool: action.tool,
+              ok: true,
+              durationMs,
+              args: action.arguments,
+              source: "batch",
+            });
             return {
               ...entry,
               ok: true,
-              durationMs: Date.now() - started,
+              durationMs,
               result,
             };
           } catch (err) {
+            const durationMs = Date.now() - started;
+            const errorMsg = `${err.name || "Error"}: ${err.message}`;
+            logAction({
+              tool: action.tool,
+              ok: false,
+              durationMs,
+              args: action.arguments,
+              error: errorMsg,
+              source: "batch",
+            });
             return {
               ...entry,
               ok: false,
-              durationMs: Date.now() - started,
-              error: `${err.name || "Error"}: ${err.message}`,
+              durationMs,
+              error: errorMsg,
             };
           }
         };
