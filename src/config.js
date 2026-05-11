@@ -26,6 +26,7 @@ export const DEFAULT_CONFIG = {
     enabled: false,
     provider: "cloudflared",
     authToken: null,
+    noAuth: false,
   },
   oauth: {
     enabled: false,
@@ -156,6 +157,9 @@ function envOverrides() {
   if (e.MCP_AUTH_TOKEN) {
     o.public = { ...(o.public || {}), authToken: e.MCP_AUTH_TOKEN };
   }
+  if (e.MCP_NO_AUTH !== undefined) {
+    o.public = { ...(o.public || {}), noAuth: coerceBool(e.MCP_NO_AUTH) };
+  }
   if (e.MCP_ALLOW_SENSITIVE !== undefined) {
     o.allowSensitive = coerceBool(e.MCP_ALLOW_SENSITIVE);
   }
@@ -232,6 +236,9 @@ function cliOverrides(cliArgs) {
   }
   if (cliArgs["auth-token"]) {
     o.public = { ...(o.public || {}), authToken: cliArgs["auth-token"] };
+  }
+  if (cliArgs["no-auth"] !== undefined) {
+    o.public = { ...(o.public || {}), noAuth: coerceBool(cliArgs["no-auth"]) };
   }
   if (cliArgs["allow-sensitive"] !== undefined) {
     o.allowSensitive = coerceBool(cliArgs["allow-sensitive"]);
@@ -315,11 +322,13 @@ function validateConfig(cfg) {
         "public.enabled requires transport=http. Tunneling exposes the HTTP server.",
       );
     }
-    if (!cfg.public.authToken || cfg.public.authToken === "change-me") {
-      if (!cfg.oauth.enabled) {
-        throw new Error(
-          "public.enabled requires public.authToken to be set to a strong value (not 'change-me'), or enable oauth instead.",
-        );
+    if (!cfg.public.noAuth) {
+      if (!cfg.public.authToken || cfg.public.authToken === "change-me") {
+        if (!cfg.oauth.enabled) {
+          throw new Error(
+            "public.enabled requires public.authToken to be set to a strong value (not 'change-me'), oauth to be enabled, or public.noAuth=true to explicitly disable authentication.",
+          );
+        }
       }
     }
     if (!["cloudflared", "ngrok"].includes(cfg.public.provider)) {

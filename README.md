@@ -293,6 +293,7 @@ Configuration is merged in this order (later wins):
 | `public.enabled` | boolean | `false` | Start a public tunnel. Requires `transport=http`. |
 | `public.provider` | `cloudflared` \| `ngrok` | `cloudflared` | Tunnel provider. |
 | `public.authToken` | string | `null` | Static Bearer token required by `/mcp`. Used when `oauth.enabled=false`. |
+| `public.noAuth` | boolean | `false` | Disable authentication on `/mcp` entirely. **Dangerous** — only use on trusted networks or when another layer (VPN, firewall) provides access control. |
 | `oauth.enabled` | boolean | `false` | Enable built-in OAuth 2.0 authorization server. Requires `transport=http`. |
 | `oauth.issuer` | string | `null` | OAuth issuer URL. Defaults to `http://<http.host>:<http.port>`. |
 | `oauth.clients` | object[] | `[]` | Registered OAuth clients. Each entry: `{ clientId, clientSecret?, redirectUris[] }`. |
@@ -317,6 +318,7 @@ Configuration is merged in this order (later wins):
 --public <bool>             Enable public tunnel (requires --transport=http)
 --provider <name>           cloudflared | ngrok
 --auth-token <token>        Static Bearer token for /mcp (when OAuth is off)
+--no-auth <bool>            Disable /mcp authentication entirely (dangerous — use only on trusted networks)
 --allow-sensitive <bool>    Permit access to sensitive paths
 --oauth <bool>              Enable OAuth 2.0 authorization server
 --oauth-issuer <url>        OAuth issuer URL (default: http://<host>:<port>)
@@ -328,7 +330,7 @@ Configuration is merged in this order (later wins):
 --version, -v               Print version
 ```
 
-Equivalent environment variables: `MCP_ROOT_DIR`, `MCP_FILE_PERMISSIONS`, `MCP_TERMINAL`, `MCP_SHELL`, `MCP_ALLOWED_COMMANDS`, `MCP_TIMEOUT_MS`, `MCP_MAX_OUTPUT_BYTES`, `MCP_TRANSPORT`, `MCP_HTTP_HOST`, `MCP_HTTP_PORT`, `MCP_PUBLIC`, `MCP_PUBLIC_PROVIDER`, `MCP_AUTH_TOKEN`, `MCP_ALLOW_SENSITIVE`, `MCP_OAUTH`, `MCP_OAUTH_ISSUER`, `MCP_OAUTH_CLIENT_ID`, `MCP_OAUTH_CLIENT_SECRET`, `MCP_OAUTH_REDIRECT_URIS`, `MCP_OAUTH_TOKEN_EXPIRY`, `MCP_CONFIG`.
+Equivalent environment variables: `MCP_ROOT_DIR`, `MCP_FILE_PERMISSIONS`, `MCP_TERMINAL`, `MCP_SHELL`, `MCP_ALLOWED_COMMANDS`, `MCP_TIMEOUT_MS`, `MCP_MAX_OUTPUT_BYTES`, `MCP_TRANSPORT`, `MCP_HTTP_HOST`, `MCP_HTTP_PORT`, `MCP_PUBLIC`, `MCP_PUBLIC_PROVIDER`, `MCP_AUTH_TOKEN`, `MCP_NO_AUTH`, `MCP_ALLOW_SENSITIVE`, `MCP_OAUTH`, `MCP_OAUTH_ISSUER`, `MCP_OAUTH_CLIENT_ID`, `MCP_OAUTH_CLIENT_SECRET`, `MCP_OAUTH_REDIRECT_URIS`, `MCP_OAUTH_TOKEN_EXPIRY`, `MCP_CONFIG`.
 
 ## Example config files
 
@@ -416,7 +418,8 @@ See [`mcp-local.config.example.json`](./mcp-local.config.example.json) for a ful
 **Auth on HTTP / public**
 
 - When `transport=http`, if `public.authToken` is set (and `oauth.enabled=false`), the `/mcp` endpoint requires `Authorization: Bearer <token>` (or `X-MCP-Auth: <token>`). Comparison is constant-time.
-- `public.enabled=true` is **rejected at startup** unless `transport=http` and an `authToken` other than the placeholder `"change-me"` is set.
+- `public.enabled=true` is **rejected at startup** unless `transport=http` and one of: an `authToken` other than the placeholder `"change-me"` is set, `oauth.enabled=true`, or `public.noAuth=true`.
+- Setting `public.noAuth=true` removes **all** authentication from `/mcp`. Only do this on trusted networks, behind a VPN/firewall, or for local-only HTTP usage where you still want the HTTP transport but don't need auth.
 
 **OAuth 2.0**
 
@@ -504,7 +507,7 @@ You enabled `permissions.terminal=true` but did not pass `--allowed-commands` (o
 Pipes and chaining are off by default. Either rewrite the command to a single binary invocation or set `terminal.allowShellMetachars=true`. Only do the latter for trusted local use.
 
 **"public.enabled requires public.authToken to be set to a strong value."**
-You enabled the tunnel without an auth token, or you left it as `"change-me"`. Generate one with `openssl rand -hex 32`.
+You enabled the tunnel without an auth token, or you left it as `"change-me"`. Generate one with `openssl rand -hex 32`. Alternatively, enable OAuth (`--oauth true`) or, only on trusted networks, pass `--no-auth true` to disable authentication entirely.
 
 **`cloudflared not found on PATH`**
 Install `cloudflared` from <https://developers.cloudflare.com/cloudflare-one/connections/connect-networks/downloads/> and re-open your shell.
