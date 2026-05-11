@@ -44,6 +44,11 @@ export const DEFAULT_CONFIG = {
     ".npmrc",
   ],
   allowSensitive: false,
+  dashboard: {
+    enabled: true,
+    host: "127.0.0.1",
+    port: 7821,
+  },
 };
 
 const FILE_PERMISSIONS = new Set([
@@ -163,6 +168,15 @@ function envOverrides() {
   if (e.MCP_ALLOW_SENSITIVE !== undefined) {
     o.allowSensitive = coerceBool(e.MCP_ALLOW_SENSITIVE);
   }
+  if (e.MCP_DASHBOARD !== undefined) {
+    o.dashboard = { ...(o.dashboard || {}), enabled: coerceBool(e.MCP_DASHBOARD) };
+  }
+  if (e.MCP_DASHBOARD_HOST) {
+    o.dashboard = { ...(o.dashboard || {}), host: e.MCP_DASHBOARD_HOST };
+  }
+  if (e.MCP_DASHBOARD_PORT) {
+    o.dashboard = { ...(o.dashboard || {}), port: coerceInt(e.MCP_DASHBOARD_PORT) };
+  }
   if (e.MCP_OAUTH !== undefined) {
     o.oauth = { ...(o.oauth || {}), enabled: coerceBool(e.MCP_OAUTH) };
   }
@@ -242,6 +256,15 @@ function cliOverrides(cliArgs) {
   }
   if (cliArgs["allow-sensitive"] !== undefined) {
     o.allowSensitive = coerceBool(cliArgs["allow-sensitive"]);
+  }
+  if (cliArgs["dashboard"] !== undefined) {
+    o.dashboard = { ...(o.dashboard || {}), enabled: coerceBool(cliArgs["dashboard"]) };
+  }
+  if (cliArgs["dashboard-host"]) {
+    o.dashboard = { ...(o.dashboard || {}), host: cliArgs["dashboard-host"] };
+  }
+  if (cliArgs["dashboard-port"]) {
+    o.dashboard = { ...(o.dashboard || {}), port: coerceInt(cliArgs["dashboard-port"]) };
   }
   if (cliArgs["oauth"] !== undefined) {
     o.oauth = { ...(o.oauth || {}), enabled: coerceBool(cliArgs["oauth"]) };
@@ -365,6 +388,58 @@ function validateConfig(cfg) {
   ) {
     throw new Error("terminal.maxOutputBytes must be a positive integer.");
   }
+}
+
+export const RUNTIME_EDITABLE_FIELDS = [
+  "rootDir",
+  "permissions.files",
+  "permissions.terminal",
+  "terminal.shell",
+  "terminal.allowedCommands",
+  "terminal.timeoutMs",
+  "terminal.maxOutputBytes",
+  "terminal.cwd",
+  "terminal.allowShellMetachars",
+  "terminal.env",
+  "sensitivePatterns",
+  "allowSensitive",
+];
+
+export function applyRuntimeUpdate(config, patch) {
+  if (!patch || typeof patch !== "object") {
+    throw new Error("Update payload must be an object.");
+  }
+  const next = deepMerge(config, patch);
+  next.rootDir = path.resolve(
+    String(next.rootDir).replace(/^~(?=$|\/|\\)/, os.homedir()),
+  );
+  next.terminal.shell = detectShell(next.terminal.shell);
+
+  if (next.transport !== config.transport) {
+    throw new Error("transport cannot be changed at runtime; restart required.");
+  }
+  if (JSON.stringify(next.http) !== JSON.stringify(config.http)) {
+    throw new Error("http.host/port cannot be changed at runtime; restart required.");
+  }
+  if (JSON.stringify(next.public) !== JSON.stringify(config.public)) {
+    throw new Error("public.* (tunnel) cannot be changed at runtime; restart required.");
+  }
+  if (JSON.stringify(next.oauth) !== JSON.stringify(config.oauth)) {
+    throw new Error("oauth.* cannot be changed at runtime; restart required.");
+  }
+  if (JSON.stringify(next.dashboard) !== JSON.stringify(config.dashboard)) {
+    throw new Error("dashboard.* cannot be changed at runtime; restart required.");
+  }
+
+  validateConfig(next);
+
+  if (!fs.existsSync(next.rootDir) || !fs.statSync(next.rootDir).isDirectory()) {
+    throw new Error(`rootDir does not exist or is not a directory: ${next.rootDir}`);
+  }
+
+  for (const key of Object.keys(config)) delete config[key];
+  Object.assign(config, next);
+  return config;
 }
 
 export function redactConfig(cfg) {
