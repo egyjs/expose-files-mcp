@@ -1,6 +1,6 @@
 {
   "name": "expose-files-mcp",
-  "version": "0.1.0",
+  "version": "1.0.1",
   "description": "A configurable MCP server that exposes local files and terminal commands, with optional public tunneling via Cloudflare Tunnel or ngrok.",
   "license": "MIT",
   "author": "egyjs",
