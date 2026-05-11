@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import { run } from "../src/index.js";
 import { parseArgs } from "../src/config.js";
+import { error as logError } from "../src/log.js";
 
 const argv = process.argv.slice(2);
 const flags = parseArgs(argv);
@@ -54,7 +55,7 @@ if (flags.version || flags.v) {
 try {
   await run(argv);
 } catch (err) {
-  process.stderr.write(`[expose-files-mcp] fatal: ${err.message}\n`);
+  logError(`fatal: ${err.message}`);
   if (process.env.MCP_DEBUG) process.stderr.write(`${err.stack}\n`);
   process.exit(1);
 }
