@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { action as logAction } from "../log.js";
+import { logAction } from "../activity-log.js";
 
 export function batchTools(registry) {
   return [

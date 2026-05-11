@@ -51,6 +51,7 @@ export const DEFAULT_CONFIG = {
   },
   logging: {
     actions: true,
+    file: "mcp-actions.log",
   },
 };
 
@@ -183,6 +184,9 @@ function envOverrides() {
   if (e.MCP_LOG_ACTIONS !== undefined) {
     o.logging = { ...(o.logging || {}), actions: coerceBool(e.MCP_LOG_ACTIONS) };
   }
+  if (e.MCP_LOG_FILE) {
+    o.logging = { ...(o.logging || {}), file: e.MCP_LOG_FILE };
+  }
   if (e.MCP_OAUTH !== undefined) {
     o.oauth = { ...(o.oauth || {}), enabled: coerceBool(e.MCP_OAUTH) };
   }
@@ -274,6 +278,9 @@ function cliOverrides(cliArgs) {
   }
   if (cliArgs["log-actions"] !== undefined) {
     o.logging = { ...(o.logging || {}), actions: coerceBool(cliArgs["log-actions"]) };
+  }
+  if (cliArgs["log-file"]) {
+    o.logging = { ...(o.logging || {}), file: cliArgs["log-file"] };
   }
   if (cliArgs["oauth"] !== undefined) {
     o.oauth = { ...(o.oauth || {}), enabled: coerceBool(cliArgs["oauth"]) };

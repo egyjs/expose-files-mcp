@@ -4,7 +4,7 @@ import { fileTools } from "./tools/files.js";
 import { terminalTools } from "./tools/terminal.js";
 import { metaTools } from "./tools/meta.js";
 import { batchTools } from "./tools/batch.js";
-import { action as logAction } from "./log.js";
+import { logAction } from "./activity-log.js";
 
 function wrapHandler(name, handler) {
   return async (args) => {

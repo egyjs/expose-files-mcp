@@ -66,6 +66,7 @@
     "port": 7821
   },
   "logging": {
-    "actions": true
+    "actions": true,
+    "file": "mcp-actions.log"
   }
 }
