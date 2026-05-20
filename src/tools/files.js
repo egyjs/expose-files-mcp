@@ -136,8 +136,8 @@ export function fileTools(config) {
               : slice.toString("utf8");
           const meta = [
             `path: ${path.relative(config.rootDir, abs)}`,
-            `size: ${fmtSize(stat.size)}`,
-            `read: ${bytesRead}B`,
+            `size: ${stat.size}`,
+            `read: ${bytesRead}`,
             `encoding: ${encoding}`,
             ...(offset ? [`offset: ${offset}`] : []),
           ].join(" | ");
@@ -168,7 +168,7 @@ export function fileTools(config) {
           encoding === "base64" ? Buffer.from(content, "base64") : content;
         await fs.writeFile(abs, data);
         const stat = await fs.stat(abs);
-        return `path: ${path.relative(config.rootDir, abs)} | written: ${fmtSize(stat.size)}`;
+        return `path: ${path.relative(config.rootDir, abs)} | written: ${stat.size} bytes`;
       },
     },
     {
@@ -264,12 +264,12 @@ export function fileTools(config) {
         }
         await walk(abs, 0);
         const truncated = results.length >= maxResults;
-        const lines = [
-          `${results.length} results${truncated ? " (truncated)" : ""}`,
-          "",
-        ];
-        for (const r of results) {
-          lines.push(r.snippet ? `${r.path} — ${r.snippet}` : r.path);
+        const lines = [`${results.length} results${truncated ? " (truncated)" : ""}`];
+        if (results.length) {
+          lines.push("");
+          for (const r of results) {
+            lines.push(r.snippet ? `${r.path} — ${r.snippet}` : r.path);
+          }
         }
         return lines.join("\n");
       },
