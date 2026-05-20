@@ -10,25 +10,14 @@ function wrapHandler(name, handler) {
     try {
       const result = await handler(args ?? {});
       return {
-        content: [
-          {
-            type: "text",
-            text:
-              typeof result === "string"
-                ? result
-                : JSON.stringify(result),
-          },
-        ],
+        content: Array.isArray(result)
+          ? result
+          : [{ type: "text", text: typeof result === "string" ? result : JSON.stringify(result) }],
       };
     } catch (err) {
       return {
         isError: true,
-        content: [
-          {
-            type: "text",
-            text: `[${name}] ${err.name || "Error"}: ${err.message}`,
-          },
-        ],
+        content: [{ type: "text", text: `[${name}] ${err.name || "Error"}: ${err.message}` }],
       };
     }
   };

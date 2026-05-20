@@ -1,6 +1,34 @@
 import fs from "node:fs/promises";
 import path from "node:path";
 import { z } from "zod";
+
+const MEDIA_MIME_TYPES = {
+  // Images
+  png: "image/png",
+  jpg: "image/jpeg",
+  jpeg: "image/jpeg",
+  gif: "image/gif",
+  webp: "image/webp",
+  bmp: "image/bmp",
+  ico: "image/x-icon",
+  tiff: "image/tiff",
+  tif: "image/tiff",
+  avif: "image/avif",
+  svg: "image/svg+xml",
+  // Audio
+  mp3: "audio/mpeg",
+  wav: "audio/wav",
+  ogg: "audio/ogg",
+  m4a: "audio/mp4",
+  flac: "audio/flac",
+  aac: "audio/aac",
+  opus: "audio/opus",
+};
+
+function mediaMimeType(filePath) {
+  const ext = path.extname(filePath).slice(1).toLowerCase();
+  return MEDIA_MIME_TYPES[ext] ?? null;
+}
 import {
   safeJoin,
   assertNoSymlinkEscape,
@@ -124,24 +152,35 @@ export function fileTools(config) {
         if (!stat.isFile()) {
           throw new Error(`Not a file: ${p}`);
         }
+        const mimeType = mediaMimeType(abs);
+        const isMedia = mimeType !== null;
         const maxLen = length ?? Math.min(stat.size - offset, 1_000_000);
         const buf = Buffer.alloc(Math.max(0, maxLen));
         const fh = await fs.open(abs, "r");
         try {
           const { bytesRead } = await fh.read(buf, 0, buf.length, offset);
           const slice = buf.subarray(0, bytesRead);
-          const content =
-            encoding === "base64"
-              ? slice.toString("base64")
-              : slice.toString("utf8");
           const meta = [
             `path: ${path.relative(config.rootDir, abs)}`,
             `size: ${stat.size}`,
             `read: ${bytesRead}`,
-            `encoding: ${encoding}`,
             ...(offset ? [`offset: ${offset}`] : []),
           ].join(" | ");
-          if (encoding === "base64") return `${meta}\n\n${content}`;
+
+          if (isMedia) {
+            const data = slice.toString("base64");
+            const contentType = mimeType.startsWith("image/") ? "image" : "audio";
+            return [
+              { type: "text", text: meta },
+              { type: contentType, data, mimeType },
+            ];
+          }
+
+          const content =
+            encoding === "base64"
+              ? slice.toString("base64")
+              : slice.toString("utf8");
+          if (encoding === "base64") return `${meta} | encoding: base64\n\n${content}`;
           return `${meta}\n\`\`\`\n${content}\n\`\`\``;
         } finally {
           await fh.close();
