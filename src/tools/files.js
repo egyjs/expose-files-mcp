@@ -35,6 +35,13 @@ async function resolveSafe(config, userPath, op) {
   return abs;
 }
 
+function fmtSize(bytes) {
+  if (bytes == null) return "?";
+  if (bytes < 1024) return `${bytes}B`;
+  if (bytes < 1048576) return `${(bytes / 1024).toFixed(1)}KB`;
+  return `${(bytes / 1048576).toFixed(1)}MB`;
+}
+
 export function fileTools(config) {
   return [
     {
@@ -86,12 +93,18 @@ export function fileTools(config) {
           }
         }
         await walk(abs, 0);
-        return {
-          root: config.rootDir,
-          base: path.relative(config.rootDir, abs) || ".",
-          truncated: entries.length >= maxEntries,
-          entries,
-        };
+        const base = path.relative(config.rootDir, abs) || ".";
+        const truncated = entries.length >= maxEntries;
+        const lines = [
+          `root: ${config.rootDir} | base: ${base} | entries: ${entries.length}${truncated ? " (truncated)" : ""}`,
+          "",
+        ];
+        for (const e of entries) {
+          if (e.type === "directory") lines.push(`${e.path}/`);
+          else if (e.type === "symlink") lines.push(`${e.path} [symlink]`);
+          else lines.push(`${e.path} (${fmtSize(e.size)})`);
+        }
+        return lines.join("\n");
       },
     },
     {
@@ -117,14 +130,19 @@ export function fileTools(config) {
         try {
           const { bytesRead } = await fh.read(buf, 0, buf.length, offset);
           const slice = buf.subarray(0, bytesRead);
-          return {
-            path: path.relative(config.rootDir, abs),
-            size: stat.size,
-            bytesRead,
-            encoding,
-            content:
-              encoding === "base64" ? slice.toString("base64") : slice.toString("utf8"),
-          };
+          const content =
+            encoding === "base64"
+              ? slice.toString("base64")
+              : slice.toString("utf8");
+          const meta = [
+            `path: ${path.relative(config.rootDir, abs)}`,
+            `size: ${stat.size}`,
+            `read: ${bytesRead}`,
+            `encoding: ${encoding}`,
+            ...(offset ? [`offset: ${offset}`] : []),
+          ].join(" | ");
+          if (encoding === "base64") return `${meta}\n\n${content}`;
+          return `${meta}\n\`\`\`\n${content}\n\`\`\``;
         } finally {
           await fh.close();
         }
@@ -150,10 +168,7 @@ export function fileTools(config) {
           encoding === "base64" ? Buffer.from(content, "base64") : content;
         await fs.writeFile(abs, data);
         const stat = await fs.stat(abs);
-        return {
-          path: path.relative(config.rootDir, abs),
-          bytesWritten: stat.size,
-        };
+        return `path: ${path.relative(config.rootDir, abs)} | written: ${stat.size} bytes`;
       },
     },
     {
@@ -180,7 +195,7 @@ export function fileTools(config) {
         } else {
           await fs.unlink(abs);
         }
-        return { path: path.relative(config.rootDir, abs), deleted: true };
+        return `deleted: ${path.relative(config.rootDir, abs)}`;
       },
     },
     {
@@ -248,7 +263,15 @@ export function fileTools(config) {
           }
         }
         await walk(abs, 0);
-        return { truncated: results.length >= maxResults, results };
+        const truncated = results.length >= maxResults;
+        const lines = [`${results.length} results${truncated ? " (truncated)" : ""}`];
+        if (results.length) {
+          lines.push("");
+          for (const r of results) {
+            lines.push(r.snippet ? `${r.path} — ${r.snippet}` : r.path);
+          }
+        }
+        return lines.join("\n");
       },
     },
   ];

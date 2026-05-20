@@ -15,6 +15,13 @@ function buildShellInvocation(shell, command) {
   return { file: shell, args: ["-c", command] };
 }
 
+function fmtOutput(label, text, truncated) {
+  if (!text) return [];
+  const lines = [`${label}:`, "```", text.trimEnd(), "```"];
+  if (truncated) lines.push(`(${label} truncated)`);
+  return lines;
+}
+
 export function terminalTools(config) {
   return [
     {
@@ -108,35 +115,27 @@ export function terminalTools(config) {
 
           child.on("error", (err) => {
             clearTimeout(timer);
-            resolve({
-              command,
-              shell: config.terminal.shell,
-              cwd: workdir,
-              exitCode: null,
-              signal: null,
-              timedOut: false,
-              error: err.message,
-              stdout: stdout.toString("utf8"),
-              stderr: stderr.toString("utf8"),
-              truncatedStdout: truncatedOut,
-              truncatedStderr: truncatedErr,
-            });
+            const lines = [
+              `command: ${command}`,
+              `shell: ${config.terminal.shell} | exit: null | signal: null | timedOut: false | cwd: ${workdir}`,
+              `error: ${err.message}`,
+              "",
+              ...fmtOutput("stdout", stdout.toString("utf8"), truncatedOut),
+              ...fmtOutput("stderr", stderr.toString("utf8"), truncatedErr),
+            ];
+            resolve(lines.join("\n"));
           });
 
           child.on("close", (code, signal) => {
             clearTimeout(timer);
-            resolve({
-              command,
-              shell: config.terminal.shell,
-              cwd: workdir,
-              exitCode: code,
-              signal,
-              timedOut,
-              stdout: stdout.toString("utf8"),
-              stderr: stderr.toString("utf8"),
-              truncatedStdout: truncatedOut,
-              truncatedStderr: truncatedErr,
-            });
+            const lines = [
+              `command: ${command}`,
+              `shell: ${config.terminal.shell} | exit: ${code ?? "null"} | signal: ${signal ?? "null"} | timedOut: ${timedOut} | cwd: ${workdir}`,
+              "",
+              ...fmtOutput("stdout", stdout.toString("utf8"), truncatedOut),
+              ...fmtOutput("stderr", stderr.toString("utf8"), truncatedErr),
+            ];
+            resolve(lines.join("\n"));
           });
         });
       },

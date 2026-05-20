@@ -39,64 +39,55 @@ export function batchTools(registry) {
       },
       handler: async ({ actions, mode, stopOnError }) => {
         const runOne = async (action, index) => {
-          const entry = {
-            index,
-            id: action.id ?? null,
-            tool: action.tool,
-          };
+          const label = action.id
+            ? `[${index}] ${action.tool} (${action.id})`
+            : `[${index}] ${action.tool}`;
+
           if (action.tool === "batch") {
-            return {
-              ...entry,
-              ok: false,
-              error: "batch cannot call itself.",
-            };
+            return { ok: false, section: `## ${label} ✗\nError: batch cannot call itself.` };
           }
           const handler = registry.get(action.tool);
           if (!handler) {
+            const available = [...registry.keys()].join(", ");
             return {
-              ...entry,
               ok: false,
-              error: `Unknown tool: "${action.tool}". Available: ${[...registry.keys()].join(", ")}.`,
+              section: `## ${label} ✗\nError: Unknown tool "${action.tool}". Available: ${available}`,
             };
           }
           const started = Date.now();
           try {
             const result = await handler(action.arguments ?? {});
-            return {
-              ...entry,
-              ok: true,
-              durationMs: Date.now() - started,
-              result,
-            };
+            const durationMs = Date.now() - started;
+            const body = typeof result === "string" ? result : JSON.stringify(result);
+            return { ok: true, section: `## ${label} ✓ (${durationMs}ms)\n${body}` };
           } catch (err) {
+            const durationMs = Date.now() - started;
             return {
-              ...entry,
               ok: false,
-              durationMs: Date.now() - started,
-              error: `${err.name || "Error"}: ${err.message}`,
+              section: `## ${label} ✗ (${durationMs}ms)\nError: ${err.name || "Error"}: ${err.message}`,
             };
           }
         };
 
-        if (mode === "parallel") {
-          const results = await Promise.all(actions.map(runOne));
-          return { mode, count: results.length, results };
-        }
+        let items;
+        let stopped = false;
 
-        const results = [];
-        for (let i = 0; i < actions.length; i++) {
-          const r = await runOne(actions[i], i);
-          results.push(r);
-          if (!r.ok && stopOnError) {
-            return {
-              mode,
-              count: results.length,
-              stopped: true,
-              results,
-            };
+        if (mode === "parallel") {
+          items = await Promise.all(actions.map(runOne));
+        } else {
+          items = [];
+          for (let i = 0; i < actions.length; i++) {
+            const item = await runOne(actions[i], i);
+            items.push(item);
+            if (!item.ok && stopOnError) {
+              stopped = true;
+              break;
+            }
           }
         }
-        return { mode, count: results.length, results };
+
+        const header = `${mode} | ${items.length}/${actions.length} actions${stopped ? " | stopped on error" : ""}`;
+        return [header, "", ...items.map((it) => it.section)].join("\n\n");
       },
     },
   ];
