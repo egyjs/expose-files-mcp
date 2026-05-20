@@ -109,33 +109,27 @@ export function terminalTools(config) {
           child.on("error", (err) => {
             clearTimeout(timer);
             resolve({
-              command,
-              shell: config.terminal.shell,
               cwd: workdir,
               exitCode: null,
-              signal: null,
-              timedOut: false,
               error: err.message,
               stdout: stdout.toString("utf8"),
               stderr: stderr.toString("utf8"),
-              truncatedStdout: truncatedOut,
-              truncatedStderr: truncatedErr,
+              ...(truncatedOut && { truncatedStdout: true }),
+              ...(truncatedErr && { truncatedStderr: true }),
             });
           });
 
           child.on("close", (code, signal) => {
             clearTimeout(timer);
             resolve({
-              command,
-              shell: config.terminal.shell,
               cwd: workdir,
               exitCode: code,
-              signal,
-              timedOut,
+              ...(signal != null && { signal }),
+              ...(timedOut && { timedOut: true }),
               stdout: stdout.toString("utf8"),
               stderr: stderr.toString("utf8"),
-              truncatedStdout: truncatedOut,
-              truncatedStderr: truncatedErr,
+              ...(truncatedOut && { truncatedStdout: true }),
+              ...(truncatedErr && { truncatedStderr: true }),
             });
           });
         });

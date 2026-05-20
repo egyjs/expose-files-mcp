@@ -87,7 +87,6 @@ export function fileTools(config) {
         }
         await walk(abs, 0);
         return {
-          root: config.rootDir,
           base: path.relative(config.rootDir, abs) || ".",
           truncated: entries.length >= maxEntries,
           entries,
@@ -118,10 +117,8 @@ export function fileTools(config) {
           const { bytesRead } = await fh.read(buf, 0, buf.length, offset);
           const slice = buf.subarray(0, bytesRead);
           return {
-            path: path.relative(config.rootDir, abs),
             size: stat.size,
             bytesRead,
-            encoding,
             content:
               encoding === "base64" ? slice.toString("base64") : slice.toString("utf8"),
           };
@@ -150,10 +147,7 @@ export function fileTools(config) {
           encoding === "base64" ? Buffer.from(content, "base64") : content;
         await fs.writeFile(abs, data);
         const stat = await fs.stat(abs);
-        return {
-          path: path.relative(config.rootDir, abs),
-          bytesWritten: stat.size,
-        };
+        return { bytesWritten: stat.size };
       },
     },
     {
@@ -180,7 +174,7 @@ export function fileTools(config) {
         } else {
           await fs.unlink(abs);
         }
-        return { path: path.relative(config.rootDir, abs), deleted: true };
+        return { ok: true };
       },
     },
     {

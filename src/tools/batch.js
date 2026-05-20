@@ -41,7 +41,7 @@ export function batchTools(registry) {
         const runOne = async (action, index) => {
           const entry = {
             index,
-            id: action.id ?? null,
+            ...(action.id != null && { id: action.id }),
             tool: action.tool,
           };
           if (action.tool === "batch") {

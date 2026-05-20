@@ -16,7 +16,7 @@ function wrapHandler(name, handler) {
             text:
               typeof result === "string"
                 ? result
-                : JSON.stringify(result, null, 2),
+                : JSON.stringify(result),
           },
         ],
       };
