@@ -15,6 +15,13 @@ function buildShellInvocation(shell, command) {
   return { file: shell, args: ["-c", command] };
 }
 
+function fmtOutput(label, text, truncated) {
+  if (!text) return [];
+  const lines = [`${label}:`, "```", text.trimEnd(), "```"];
+  if (truncated) lines.push(`(${label} truncated)`);
+  return lines;
+}
+
 export function terminalTools(config) {
   return [
     {
@@ -108,29 +115,30 @@ export function terminalTools(config) {
 
           child.on("error", (err) => {
             clearTimeout(timer);
-            resolve({
-              cwd: workdir,
-              exitCode: null,
-              error: err.message,
-              stdout: stdout.toString("utf8"),
-              stderr: stderr.toString("utf8"),
-              ...(truncatedOut && { truncatedStdout: true }),
-              ...(truncatedErr && { truncatedStderr: true }),
-            });
+            const lines = [
+              `error: ${err.message} | cwd: ${workdir}`,
+              "",
+              ...fmtOutput("stdout", stdout.toString("utf8"), truncatedOut),
+              ...fmtOutput("stderr", stderr.toString("utf8"), truncatedErr),
+            ];
+            resolve(lines.join("\n"));
           });
 
           child.on("close", (code, signal) => {
             clearTimeout(timer);
-            resolve({
-              cwd: workdir,
-              exitCode: code,
-              ...(signal != null && { signal }),
-              ...(timedOut && { timedOut: true }),
-              stdout: stdout.toString("utf8"),
-              stderr: stderr.toString("utf8"),
-              ...(truncatedOut && { truncatedStdout: true }),
-              ...(truncatedErr && { truncatedStderr: true }),
-            });
+            const status = [
+              `exit: ${code ?? "null"}`,
+              ...(signal != null ? [`signal: ${signal}`] : []),
+              ...(timedOut ? ["timed out"] : []),
+              `cwd: ${workdir}`,
+            ].join(" | ");
+            const lines = [
+              status,
+              "",
+              ...fmtOutput("stdout", stdout.toString("utf8"), truncatedOut),
+              ...fmtOutput("stderr", stderr.toString("utf8"), truncatedErr),
+            ];
+            resolve(lines.join("\n"));
           });
         });
       },
