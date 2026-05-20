@@ -49,6 +49,10 @@ export const DEFAULT_CONFIG = {
     host: "127.0.0.1",
     port: 7821,
   },
+  logging: {
+    actions: true,
+    file: "mcp-actions.log",
+  },
 };
 
 const FILE_PERMISSIONS = new Set([
@@ -177,6 +181,12 @@ function envOverrides() {
   if (e.MCP_DASHBOARD_PORT) {
     o.dashboard = { ...(o.dashboard || {}), port: coerceInt(e.MCP_DASHBOARD_PORT) };
   }
+  if (e.MCP_LOG_ACTIONS !== undefined) {
+    o.logging = { ...(o.logging || {}), actions: coerceBool(e.MCP_LOG_ACTIONS) };
+  }
+  if (e.MCP_LOG_FILE) {
+    o.logging = { ...(o.logging || {}), file: e.MCP_LOG_FILE };
+  }
   if (e.MCP_OAUTH !== undefined) {
     o.oauth = { ...(o.oauth || {}), enabled: coerceBool(e.MCP_OAUTH) };
   }
@@ -265,6 +275,12 @@ function cliOverrides(cliArgs) {
   }
   if (cliArgs["dashboard-port"]) {
     o.dashboard = { ...(o.dashboard || {}), port: coerceInt(cliArgs["dashboard-port"]) };
+  }
+  if (cliArgs["log-actions"] !== undefined) {
+    o.logging = { ...(o.logging || {}), actions: coerceBool(cliArgs["log-actions"]) };
+  }
+  if (cliArgs["log-file"]) {
+    o.logging = { ...(o.logging || {}), file: cliArgs["log-file"] };
   }
   if (cliArgs["oauth"] !== undefined) {
     o.oauth = { ...(o.oauth || {}), enabled: coerceBool(cliArgs["oauth"]) };

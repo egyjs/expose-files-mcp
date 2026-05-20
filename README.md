@@ -333,7 +333,7 @@ Configuration is merged in this order (later wins):
 | `permissions.files` | `read-only` \| `write-only` \| `read-write` \| `none` | `read-only` | File access mode. |
 | `permissions.terminal` | boolean | `false` | Whether `run_command` is enabled. |
 | `terminal.shell` | string | `auto` | Shell binary. `auto` picks `$SHELL` on POSIX or `%ComSpec%` on Windows. |
-| `terminal.allowedCommands` | string[] | `[]` | Base command names permitted by `run_command`. |
+| `terminal.allowedCommands` | string[] | `[]` | Commands permitted by `run_command`. Each entry can be a bare name (`pint`), a path (`./vendor/bin/pint`), or a multi-word prefix (`php artisan`, `composer require`, `npm run build`). The command must start with one of these entries — extra arguments after the matched prefix are allowed. |
 | `terminal.timeoutMs` | int | `10000` | Per-command timeout. |
 | `terminal.maxOutputBytes` | int | `20000` | Cap on stdout/stderr captured per command. |
 | `terminal.env` | object | `{}` | Extra env vars passed to child processes. |
@@ -467,7 +467,7 @@ See [`mcp-local.config.example.json`](./mcp-local.config.example.json) for a ful
 
 **Command safety**
 
-- A single command is parsed; the base binary (e.g. `cat`, `ls`, `pwd`) is checked against `allowedCommands`.
+- The command line is tokenised and matched against `allowedCommands`. Entries can be bare names (`pint`), full paths (`./vendor/bin/pint`), or multi-word prefixes (`php artisan`, `composer require`, `npm run build`); extra arguments after a matching prefix are allowed.
 - A built-in deny list always blocks `sudo`, `su`, `rm`, `del`, `mkfs`, `fdisk`, `dd`, `shutdown`, `reboot`, `halt`, `kill`, `killall`, `curl`, `wget`, `nc`, `ssh`, `scp`, `rsync`, `chmod`, `chown` — even if they appear in `allowedCommands`.
 - Shell metacharacters (`;`, `&`, `|`, `` ` ``, `$`, `<`, `>`, `(`, `)`, `{`, `}`) are blocked unless `terminal.allowShellMetachars=true`.
 - A dangerous-pattern scan blocks well-known destructive snippets (`rm -rf /`, `:(){:|:&};:`, `mkfs`, `dd if=`, `format c:`, etc.).

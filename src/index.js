@@ -8,6 +8,7 @@ import { startHttp } from "./transports/http.js";
 import { startTunnel } from "./tunnel/index.js";
 import { startDashboard } from "./dashboard/index.js";
 import { blank, title, section, kv, ready, warn } from "./log.js";
+import { configureActivityLog, closeActivityLog } from "./activity-log.js";
 
 const pkg = JSON.parse(
   readFileSync(
@@ -38,6 +39,16 @@ function logCore(config, toolNames) {
   kv("Terminal",   describeTerminal(config));
   kv("Transport",  config.transport);
   kv("Tools",      `${toolNames.length} (${toolNames.join(", ")})`);
+}
+
+function logActivityFile(status) {
+  blank();
+  section("Activity log");
+  if (status.enabled) {
+    kv("File", status.file);
+  } else {
+    kv("File", "disabled");
+  }
 }
 
 function logDashboard(dashboard) {
@@ -99,6 +110,11 @@ function logSecurityWarnings(config) {
 export async function run(argv) {
   const { config, configPath } = loadConfig(argv);
 
+  const activityStatus = configureActivityLog({
+    enabled: config.logging?.actions !== false,
+    file: config.logging?.file,
+  });
+
   const dashboard = await startDashboard(config);
 
   if (config.transport === "stdio") {
@@ -106,6 +122,7 @@ export async function run(argv) {
     await startStdio(server);
 
     logCore(config, toolNames);
+    logActivityFile(activityStatus);
     logDashboard(dashboard);
     logSecurityWarnings(config);
     blank();
@@ -126,6 +143,7 @@ export async function run(argv) {
   logHttp(config, http);
   if (config.oauth?.enabled && http.oauth) logOAuth(http);
   if (tunnel) logTunnel(config, tunnel);
+  logActivityFile(activityStatus);
   logDashboard(dashboard);
   logSecurityWarnings(config);
   blank();
@@ -135,6 +153,7 @@ export async function run(argv) {
     blank();
     warn("Shutting down…");
     if (tunnel) tunnel.stop();
+    closeActivityLog();
     process.exit(0);
   };
   process.on("SIGINT", shutdown);
