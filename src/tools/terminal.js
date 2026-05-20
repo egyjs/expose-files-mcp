@@ -116,7 +116,9 @@ export function terminalTools(config) {
           child.on("error", (err) => {
             clearTimeout(timer);
             const lines = [
-              `error: ${err.message} | cwd: ${workdir}`,
+              `command: ${command}`,
+              `shell: ${config.terminal.shell} | exit: null | signal: null | timedOut: false | cwd: ${workdir}`,
+              `error: ${err.message}`,
               "",
               ...fmtOutput("stdout", stdout.toString("utf8"), truncatedOut),
               ...fmtOutput("stderr", stderr.toString("utf8"), truncatedErr),
@@ -126,14 +128,9 @@ export function terminalTools(config) {
 
           child.on("close", (code, signal) => {
             clearTimeout(timer);
-            const status = [
-              `exit: ${code ?? "null"}`,
-              ...(signal != null ? [`signal: ${signal}`] : []),
-              ...(timedOut ? ["timed out"] : []),
-              `cwd: ${workdir}`,
-            ].join(" | ");
             const lines = [
-              status,
+              `command: ${command}`,
+              `shell: ${config.terminal.shell} | exit: ${code ?? "null"} | signal: ${signal ?? "null"} | timedOut: ${timedOut} | cwd: ${workdir}`,
               "",
               ...fmtOutput("stdout", stdout.toString("utf8"), truncatedOut),
               ...fmtOutput("stderr", stderr.toString("utf8"), truncatedErr),

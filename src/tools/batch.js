@@ -54,14 +54,17 @@ export function batchTools(registry) {
               section: `## ${label} ✗\nError: Unknown tool "${action.tool}". Available: ${available}`,
             };
           }
+          const started = Date.now();
           try {
             const result = await handler(action.arguments ?? {});
+            const durationMs = Date.now() - started;
             const body = typeof result === "string" ? result : JSON.stringify(result);
-            return { ok: true, section: `## ${label} ✓\n${body}` };
+            return { ok: true, section: `## ${label} ✓ (${durationMs}ms)\n${body}` };
           } catch (err) {
+            const durationMs = Date.now() - started;
             return {
               ok: false,
-              section: `## ${label} ✗\nError: ${err.name || "Error"}: ${err.message}`,
+              section: `## ${label} ✗ (${durationMs}ms)\nError: ${err.name || "Error"}: ${err.message}`,
             };
           }
         };

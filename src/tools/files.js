@@ -96,7 +96,7 @@ export function fileTools(config) {
         const base = path.relative(config.rootDir, abs) || ".";
         const truncated = entries.length >= maxEntries;
         const lines = [
-          `base: ${base} | entries: ${entries.length}${truncated ? " (truncated)" : ""}`,
+          `root: ${config.rootDir} | base: ${base} | entries: ${entries.length}${truncated ? " (truncated)" : ""}`,
           "",
         ];
         for (const e of entries) {
@@ -135,10 +135,11 @@ export function fileTools(config) {
               ? slice.toString("base64")
               : slice.toString("utf8");
           const meta = [
+            `path: ${path.relative(config.rootDir, abs)}`,
             `size: ${fmtSize(stat.size)}`,
             `read: ${bytesRead}B`,
+            `encoding: ${encoding}`,
             ...(offset ? [`offset: ${offset}`] : []),
-            ...(encoding === "base64" ? ["base64"] : []),
           ].join(" | ");
           if (encoding === "base64") return `${meta}\n\n${content}`;
           return `${meta}\n\`\`\`\n${content}\n\`\`\``;
@@ -167,7 +168,7 @@ export function fileTools(config) {
           encoding === "base64" ? Buffer.from(content, "base64") : content;
         await fs.writeFile(abs, data);
         const stat = await fs.stat(abs);
-        return `written: ${fmtSize(stat.size)}`;
+        return `path: ${path.relative(config.rootDir, abs)} | written: ${fmtSize(stat.size)}`;
       },
     },
     {
@@ -194,7 +195,7 @@ export function fileTools(config) {
         } else {
           await fs.unlink(abs);
         }
-        return "deleted";
+        return `deleted: ${path.relative(config.rootDir, abs)}`;
       },
     },
     {
